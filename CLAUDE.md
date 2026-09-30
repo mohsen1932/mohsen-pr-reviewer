@@ -5,8 +5,8 @@ no database. Reviews run the Claude Code harness (Agent SDK) against a real
 checkout of the PR's repo; findings are triaged by a human and posted back to
 GitHub as one review with inline comments.
 
-**Status: M3b complete** except rubric tuning (T3b.7), which needs Anthropic
-credits on the configured key. 411 tests at 97% coverage. Next: TASKS.md M4.
+**Status: M3b complete**, rubric tuned against real PRs. 417 tests at 97%
+coverage. Next: TASKS.md M4 (review UI).
 
 ## Where things are decided
 
@@ -74,6 +74,12 @@ stop and ask.
   confused with configuration for Claude Code sessions in this repo.
 - **Never set `allowedTools`** on the review query. A bare name there
   auto-approves the call before `canUseTool` runs, silently disabling the guard.
+- **Do not dispatch `/code-review`.** The bundled skill has its own reporting
+  contract naming a tool this session lacks; dispatching it made the model write
+  findings as prose that never reached `report_finding`. The rubric lives in
+  `lib/review/instructions.ts`. SPEC.md §7.5 has the measurements.
+- **Keep `alwaysLoad: true` on the review MCP server.** Tool search defers SDK
+  MCP tools, and a model that never sees `report_finding` cannot report.
 - Scripts under `scripts/` are `.mts` and run via `tsx` — the package is CJS, so
   top-level await needs an explicit ESM extension.
 

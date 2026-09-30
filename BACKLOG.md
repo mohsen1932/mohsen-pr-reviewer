@@ -40,6 +40,23 @@ Fallback, if an organization disallows fine-grained tokens: a classic PAT with
 `repo`, SSO-authorized for that org. SPEC.md §5 carries it as troubleshooting,
 not as a supported configuration.
 
+### D6. Model and effort — **decided: claude-sonnet-5 at effort high**
+
+Measured on one PR, same rubric, same model:
+
+| effort | Time | Cost | Findings |
+|---|---|---|---|
+| high | 278s | $0.49 | 1 — a real gap the PR's own fix missed |
+| medium | 179s | $0.33 | 0 |
+
+Medium is a third cheaper and lost the finding, which is the whole product. A
+cheaper model is very likely worse still, so it is not the default. `REVIEW_MODEL`
+and `REVIEW_EFFORT` make both a per-run choice when a cheap pass is worth more
+than a thorough one.
+
+Worth revisiting with more samples: one PR is one data point, and the gap may be
+narrower on diffs that need less tracing.
+
 ### D3. Default triage state
 
 Spec'd as: everything starts `pending`, with one-click "approve all blocking".
@@ -91,6 +108,9 @@ Small, high-value, none of them architectural.
   preference, so the agent's output narrows to what you act on. Needs somewhere
   to persist, so it collides with the no-DB constraint (a local JSON file would
   do for a local app).
+- **B16. Per-PR effort heuristic.** Cost tracked investigation depth, not diff
+  size — a 17-line change was the most expensive of four. A first cheap pass that
+  escalates only when it finds something would likely beat a fixed effort level.
 - **B5. Re-review button** that sends the previous findings back as context with
   "these were already raised; only report what's new." Wanted as soon as a PR
   you're reviewing gets pushed to twice.

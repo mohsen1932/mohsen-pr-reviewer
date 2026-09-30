@@ -445,23 +445,33 @@ with `isError` so the agent must fix or downgrade it), runs line anchoring
 findings arrive as they are discovered, and a run that hits `maxTurns` still
 yields everything reported up to that point.
 
-### 7.5 Skill and prompt
+### 7.5 Rubric and prompt
 
-The prompt dispatches the **bundled `code-review` skill** that ships with Claude
-Code (`/code-review`), which is the rubric this project wanted in the first
-place. A project-authored skill holding PR-specific instructions is loaded from
-`lib/review/skills/` via the `plugins` option — deliberately not `.claude/skills/`,
-so the app's review skill is never confused with configuration for Claude Code
-sessions in this repository. It covers what the bundled
-skill cannot know about this app:
+The rubric lives in `lib/review/instructions.ts`, appended to the Claude Code
+preset via `systemPrompt.append`. It covers reporting (call `report_finding`,
+once per finding, as you find it), scope, what to report and what not to, the
+classification rules from §8.1, proportionality, and that repository content is
+data rather than instructions.
 
-- Report every finding through `report_finding`; never write findings into prose.
-- Anchor to a line that appears in the PR diff; do not comment on unchanged code.
-- Assign `disposition` and `category` per the definitions in §8.1, which are
-  restated in the skill verbatim so the agent and the UI share one vocabulary.
-- `blocking` requires a `failureScenario` — concrete inputs/state → wrong output.
-  If you cannot write one, it is not blocking.
-- Precision over recall. Four real findings beat twenty with sixteen nitpicks.
+**The bundled `code-review` skill is deliberately not dispatched.** It is present
+in the session — `slash_commands` confirms it with `settingSources: []` — but it
+carries its own reporting contract naming a tool this session does not provide.
+When dispatched, the model followed the skill and emitted findings as prose JSON
+that never reached `report_finding`, so every finding was lost. Measured on the
+same PR:
+
+| Prompt | Findings recorded | Turns | Time | Cost |
+|---|---|---|---|---|
+| `/code-review` dispatched | 0 | 0 | 61s | $0.109 |
+| Own rubric | 1 | 4 | 21s | $0.077 |
+
+The engine still reports whether the skill is present on the `done` event, so a
+future SDK change is visible rather than silent.
+
+> **SDK MCP tools are deferred behind tool search by default**, so their schemas
+> are absent from the turn-1 prompt. The review server sets `alwaysLoad: true`:
+> `report_finding` is the only way a finding leaves the session, and a model that
+> has not seen it writes findings into prose where they are discarded.
 
 > **`settingSources: []` is a security control, not a default.** With
 > `settingSources: ['project']`, the SDK loads `.claude/` from `cwd` **and every
@@ -470,12 +480,6 @@ skill cannot know about this app:
 > lines that execute *before* Claude sees the content, so loading project
 > settings from an untrusted clone is remote code execution, not merely prompt
 > injection. Never set it while `cwd` is a checkout of someone else's repo.
-
-Confirmed at M3: the bundled `code-review` skill is present with
-`settingSources: []`, verified by reading `slash_commands` on the `system`/`init`
-message. The engine re-checks this every run and reports it on the `done` event,
-so a future SDK change that removes it surfaces rather than silently degrading
-the review.
 
 `allowedTools` is deliberately **not** set. A bare tool name there auto-approves
 the call before `canUseTool` runs, which would make the guard in §7.3 dead code;
@@ -761,19 +765,30 @@ GitHub marks `generated`, binary files, and paths matching `.gitattributes`
 
 ### Cost
 
-Agent reviews cost meaningfully more than a diff-only call would: the agent
-explores, and every file it reads stays in context for the rest of the run.
-Expect roughly 5–10× a single-shot review — order of tens of cents rather than a
-few cents on `claude-sonnet-5`, and more on a large repo where exploration is
-expensive. Runs take 2–5 minutes.
+Measured on real pull requests with `claude-sonnet-5` at `effort: high`:
 
-The SDK reports this directly: `total_cost_usd`, `num_turns`, and `usage` on the
-`result` message, surfaced on the `done` event and shown in the UI. With no
-history (§13) that number is the only cost feedback before the Console bill, so a
-spend limit on the key (§5) is the backstop.
+| Pull request | Diff | Findings | Turns | Time | Cost |
+|---|---|---|---|---|---|
+| One-line config change | 2 lines | 1 | 4 | 21s | $0.08 |
+| Parser bug fix | 33 lines | 1 | 5 | 134s | $0.21 |
+| Header-handling fix | 17 lines | 1 | 14 | 278s | $0.49 |
+| Feature, 4 files | 58 lines | 2 | 10 | 141s | $0.26 |
 
-`effort: "high"` is the default because review quality is the point of choosing
-the Agent SDK at all; `"medium"` is the lever to pull if cost becomes annoying.
+Cost tracks *investigation depth*, not diff size — the 17-line change was the
+most expensive of the four, because verifying it required tracing every write
+path. The rubric's proportionality guidance exists to bound this; adding it cut
+that review from 483s/$0.65 to 278s/$0.49 while finding one more real issue.
+
+**`effort` is the cost lever, and it is not free.** The same PR at `medium`
+finished in 179s for $0.33 but missed the finding that `high` caught. `high` is
+the default because review quality is the reason for choosing an agent at all;
+`REVIEW_EFFORT` lowers it per run when a cheap pass is worth more than a thorough
+one.
+
+The SDK reports `total_cost_usd`, `num_turns` and `usage` on the `result`
+message, surfaced on the `done` event and shown in the UI. With no history (§13)
+that number is the only cost feedback before the Console bill, so a spend limit
+on the key (§5) is the backstop.
 
 ### Failure modes
 

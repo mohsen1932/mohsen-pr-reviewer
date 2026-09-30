@@ -115,7 +115,7 @@ printing raw SDK messages.
 
 ## M3b — Findings
 
-**Complete except T3b.7**, which needs a real review run. 411 tests, 97% coverage.
+**✅ Complete.** 417 tests, 97% coverage. Rubric tuned against 4 real PRs.
 
 **Done when:** the CLI prints validated, anchored findings as JSON.
 
@@ -130,7 +130,7 @@ printing raw SDK messages.
 - [x] **T3b.5** `ReviewEvent` types + `reviewPullRequest()` async iterable (§3)
 - [x] **T3b.6** Map SDK messages → `status` / `finding` / `done` / `error`,
       including `error_max_turns` as a *partial* result (§7.6, §11)
-- [ ] **T3b.7** ⛔ BLOCKED on Anthropic credits — iterate the rubric against 3–5 real PRs; tune for precision (§7.5)
+- [x] **T3b.7** Iterate the rubric against 3–5 real PRs; tune for precision (§7.5)
 
 - [x] **T3b.8** Tests: schema constraints, `report_finding` rejection paths, anchoring (in-hunk / snap / unsnappable / not-in-PR) (§16)
 ---

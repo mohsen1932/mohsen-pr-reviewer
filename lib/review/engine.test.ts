@@ -126,10 +126,20 @@ describe("security invariants", () => {
 });
 
 describe("session wiring", () => {
-  it("dispatches the bundled code-review skill", async () => {
+  it("does not dispatch the bundled code-review skill", async () => {
     sdkYields([init(), ok]);
     await collect();
-    expect(promptPassed().startsWith("/code-review")).toBe(true);
+    // The skill carries its own reporting contract naming a tool this session
+    // does not provide; dispatching it made the model write findings as prose
+    // JSON that never reached report_finding, losing all of them (SPEC.md §7.5).
+    expect(promptPassed()).not.toContain("/code-review");
+  });
+
+  it("tells the model that only report_finding delivers a finding", async () => {
+    sdkYields([init(), ok]);
+    await collect();
+    expect(promptPassed()).toContain("report_finding");
+    expect(promptPassed()).toContain("discarded");
   });
 
   it("runs in the checkout directory", async () => {

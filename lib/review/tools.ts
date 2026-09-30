@@ -142,6 +142,11 @@ export function createReviewTools(ctx: ReviewToolsContext) {
     name: "review",
     version: "1.0.0",
     tools: [gitLogForFile, gitBlame, reportFinding],
+    // Tool search defers SDK MCP tools by default, so their schemas are not in
+    // the turn-1 prompt. report_finding is the only way a finding leaves this
+    // session — if the model has not seen it, it writes findings into prose and
+    // they are lost. Three tools is well worth the context.
+    alwaysLoad: true,
   });
 }
 
