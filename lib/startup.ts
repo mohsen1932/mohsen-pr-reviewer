@@ -8,13 +8,13 @@ import { scrubError } from "./scrub";
  * Startup validation. SPEC.md §14.
  *
  * Reports precisely what is wrong rather than failing on the first API call.
- * Each check is independent: a missing Anthropic key must not hide a missing
+ * Each check is independent: a missing OpenAI key must not hide a missing
  * git binary.
  */
 
 const run = promisify(execFile);
 
-export type CheckId = "git" | "github" | "anthropic";
+export type CheckId = "git" | "github" | "openai";
 
 export type Check = {
   id: CheckId;
@@ -88,39 +88,37 @@ async function checkGitHub(): Promise<Check> {
   }
 }
 
-async function checkAnthropic(): Promise<Check> {
+async function checkOpenAI(): Promise<Check> {
   const base = {
-    id: "anthropic" as const,
-    label: "ANTHROPIC_API_KEY",
+    id: "openai" as const,
+    label: "OPENAI_API_KEY",
     blocksReviews: true,
   };
-  if (!config.anthropicApiKey) {
+  if (!config.openaiApiKey) {
     return {
       ...base,
       ok: false,
       problem: "Not set",
-      fix: "Create a key at console.anthropic.com and set a spend limit — this app is its only consumer.",
+      fix: "Create a key at platform.openai.com and set a spend limit — this app is its only consumer.",
     };
   }
   try {
     // GET /v1/models is a free, zero-token credential probe. Inference goes
-    // through the Agent SDK; this is deliberately not an inference path.
-    const response = await fetch("https://api.anthropic.com/v1/models?limit=1", {
-      headers: {
-        "x-api-key": config.anthropicApiKey,
-        "anthropic-version": "2023-06-01",
-      },
+    // through the chat completions API; this is deliberately not an inference
+    // path, and it cannot detect an exhausted quota (§14).
+    const response = await fetch("https://api.openai.com/v1/models", {
+      headers: { authorization: `Bearer ${config.openaiApiKey}` },
     });
     if (response.status === 401 || response.status === 403) {
       return {
         ...base,
         ok: false,
-        problem: "Rejected by Anthropic",
-        fix: "The key is invalid or revoked. Create a new one at console.anthropic.com.",
+        problem: "Rejected by OpenAI",
+        fix: "The key is invalid or revoked. Create a new one at platform.openai.com.",
       };
     }
     if (!response.ok) {
-      return { ...base, ok: false, problem: `Anthropic API returned ${response.status}` };
+      return { ...base, ok: false, problem: `OpenAI API returned ${response.status}` };
     }
     return { ...base, ok: true, detail: `model: ${config.reviewModel}` };
   } catch (error) {
@@ -137,7 +135,7 @@ export type StartupReport = {
 };
 
 export async function runStartupChecks(): Promise<StartupReport> {
-  const checks = await Promise.all([checkGit(), checkGitHub(), checkAnthropic()]);
+  const checks = await Promise.all([checkGit(), checkGitHub(), checkOpenAI()]);
   const byId = (id: CheckId) => checks.find((c) => c.id === id)!;
   return {
     checks,

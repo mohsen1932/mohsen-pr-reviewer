@@ -81,7 +81,9 @@ for await (const event of reviewPullRequest({
       console.log();
       console.log(
         bold(
-          `done · ${event.findingCount} findings · ${event.turns} turns · $${event.costUsd.toFixed(4)} · ${(event.durationMs / 1000).toFixed(1)}s`,
+          `done · ${event.findingCount} findings · ${event.turns} turns · ` +
+            `${event.costUsd === null ? "cost unknown" : "$" + event.costUsd.toFixed(4)} · ` +
+            `${(event.durationMs / 1000).toFixed(1)}s`,
         ),
       );
       {
@@ -89,9 +91,8 @@ for await (const event of reviewPullRequest({
         const k = (n: number) => `${(n / 1000).toFixed(1)}k`;
         console.log(
           dim(
-            `       tokens: ${k(u.inputTokens)} fresh in · ${k(u.cacheReadTokens)} cached in · ` +
-              `${k(u.cacheWriteTokens)} cache writes · ${k(u.outputTokens)} out · ` +
-              `cache hit ${(u.cacheHitRate * 100).toFixed(0)}%`,
+            `       tokens: ${k(u.inputTokens)} in (${k(u.cacheReadTokens)} cached) · ` +
+              `${k(u.outputTokens)} out · cache hit ${(u.cacheHitRate * 100).toFixed(0)}%`,
           ),
         );
       }

@@ -1,5 +1,5 @@
 /**
- * Project-specific review instructions, appended to the Claude Code preset.
+ * The review rubric, sent as the system message.
  * SPEC.md §7.5.
  *
  * The bundled `code-review` skill supplies the rubric; this supplies what the
@@ -68,8 +68,8 @@ SCALE THE INVESTIGATION TO THE CHANGE
   changed lines and found nothing, say so and stop.
 
 USING THE REPOSITORY
-- Grep and read surrounding code before asserting a call is wrong — check the
-  call sites of anything whose contract changed.
+- Use read_file and search to check the call sites of anything whose contract
+  changed, before asserting a call is wrong.
 - git_log_for_file and git_blame show why code is the way it is. A guard added
   deliberately in an earlier fix is not a redundant check.
 

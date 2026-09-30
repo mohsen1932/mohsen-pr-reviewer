@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export default async function Home() {
   const report = await runStartupChecks();
 
-  // Browsing only needs GitHub; a missing Anthropic key gates reviews, not
+  // Browsing only needs GitHub; a missing OpenAI key gates reviews, not
   // navigation.
   if (report.canBrowse) redirect("/repos");
 

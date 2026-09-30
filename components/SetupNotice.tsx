@@ -44,7 +44,7 @@ export default function SetupNotice({ report }: { report: StartupReport }) {
       <p className="mt-7 text-xs leading-relaxed text-ink-subtle">
         This runs on your machine with your credentials and has no authentication.
         Keep it on localhost — anyone who can reach the port can read your private
-        repositories and spend your Anthropic balance.
+        repositories and spend your OpenAI balance.
       </p>
     </div>
   );

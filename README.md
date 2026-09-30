@@ -4,12 +4,12 @@ AI pull-request review that runs on your machine. Pick a repo, pick an open PR,
 let Claude review it, triage the findings, and post the approved ones back to
 GitHub as a single review with inline comments.
 
-Reviews run the Claude Code harness ([Agent SDK]) against a real checkout, so the
+Reviews run an agent loop over the OpenAI API against a real checkout, so the
 agent can follow call sites and read git history — not just the diff.
 
 > **Local-only and unauthenticated.** It runs with your credentials and has no
 > login. Anyone who can reach the port can read your private repositories and
-> spend your Anthropic balance. `npm run dev` binds to `127.0.0.1`; keep it there.
+> spend your OpenAI balance. `npm run dev` binds to `127.0.0.1`; keep it there.
 
 ## Setup
 
@@ -24,8 +24,8 @@ You need:
 
 - A **fine-grained GitHub PAT** with access to all repositories —
   Contents: Read, Pull requests: Read and write
-- An **Anthropic API key** from [console.anthropic.com] — set a spend limit, this
-  app is its only consumer
+- An **OpenAI API key** from [platform.openai.com] — set a spend limit, this app
+  is its only consumer
 - **git ≥ 2.19** on `PATH`
 
 The app validates all three at startup and tells you exactly what is missing.
@@ -43,8 +43,9 @@ no credentials.
 
 ## Status
 
-**M2 of 8 complete** — scaffold, configuration, startup validation, repository and
-pull-request browsing with diff parsing (266 tests, 99.6% coverage). The review engine and posting are not built yet. See [TASKS.md].
+**M3b of 8 complete** — scaffold, configuration, startup validation, repository
+and pull-request browsing, checkout, and the review engine (454 tests, 97%
+coverage). The review UI and posting are not built yet. See [TASKS.md].
 
 ## Documentation
 
@@ -55,8 +56,7 @@ pull-request browsing with diff parsing (266 tests, 99.6% coverage). The review 
 | [BACKLOG.md] | Decisions with rationale, deferred ideas, ruled-out list |
 | [CLAUDE.md] | Orientation and security invariants for AI agents |
 
-[Agent SDK]: https://code.claude.com/docs/en/agent-sdk
-[console.anthropic.com]: https://console.anthropic.com
+[platform.openai.com]: https://platform.openai.com
 [SPEC.md]: ./SPEC.md
 [TASKS.md]: ./TASKS.md
 [BACKLOG.md]: ./BACKLOG.md

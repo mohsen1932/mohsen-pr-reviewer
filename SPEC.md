@@ -1,10 +1,10 @@
 # Local PR Reviewer — Spec & Architecture
 
 A **local-only** AI pull-request reviewer. Runs on your own machine, for you.
-Pick a repo, pick an open PR, let Claude review it, edit/approve the findings,
+Pick a repo, pick an open PR, let an AI agent review it, edit/approve the findings,
 then post the approved ones back to the PR as a single review with inline
-comments. Reviews run the Claude Code harness (Agent SDK) against a real
-checkout, so the agent can follow call sites and read git history.
+comments. Reviews run an agent loop over the OpenAI API against a real checkout,
+so the agent can follow call sites and read git history.
 
 "Local" is part of the product name and is shown in the UI header and the browser
 title (`Local PR Reviewer`), so it is never ambiguous that this is a tool running
@@ -23,7 +23,7 @@ the server is the user. There is no login, no session, and no deployment.
 
 | # | Feature |
 |---|---|
-| F1 | GitHub + Anthropic credentials from `.env` (no login flow) |
+| F1 | GitHub + OpenAI credentials from `.env` (no login flow) |
 | F2 | List repos the user owns or has access to (+ paste a repo URL directly) |
 | F2b | **Private repos are first-class** — owned, collaborator, and org-owned |
 | F3 | List open PRs for the selected repo |
@@ -58,7 +58,7 @@ Everything stateful lives in exactly two places:
 state — deleting it costs one clone.
 
 The server is fully stateless. Every route handler reads the credentials from the
-environment, calls GitHub and/or Anthropic, and returns.
+environment, calls GitHub and/or OpenAI, and returns.
 
 ---
 
@@ -100,12 +100,12 @@ environment, calls GitHub and/or Anthropic, and returns.
 ┌───────────────▼─────────────── Next.js server ──────────────────┐
 │                                                                 │
 │  Credentials read from process.env at startup                   │
-│      GITHUB_TOKEN, ANTHROPIC_API_KEY (never sent to the browser) │
+│      GITHUB_TOKEN, OPENAI_API_KEY (never sent to the browser)    │
 │                                                                 │
 │  ┌──────────────┐   ┌───────────────┐   ┌────────────────────┐  │
 │  │ github.ts    │   │ engine.ts     │──▶│ findings.ts        │  │
-│  │ Octokit      │   │ Agent SDK     │   │ schema + line      │  │
-│  │ wrapper      │   │ query()       │   │ validation         │  │
+│  │ Octokit      │   │ agent loop +  │   │ schema + line      │  │
+│  │ wrapper      │   │ tool dispatch │   │ validation         │  │
 │  └──────┬───────┘   └───┬───────┬───┘   └────────────────────┘  │
 │         │        ┌──────▼────┐  │                               │
 │         │        │checkout.ts│──┼──▶ .cache/repos/<owner>/<repo>│
@@ -113,8 +113,8 @@ environment, calls GitHub and/or Anthropic, and returns.
 └─────────┼───────────────────┼───────────────────────────────────┘
           │                   │
    ┌──────▼──────┐     ┌──────▼──────────┐
-   │ GitHub REST │     │  Claude API     │
-   │ (GITHUB_TOKEN)    │(ANTHROPIC_API_KEY)
+   │ GitHub REST │     │  OpenAI API     │
+   │ (GITHUB_TOKEN)    │ (OPENAI_API_KEY)
    └─────────────┘     └─────────────────┘
 
 Both credentials are yours, read from `.env`. Neither is ever sent to the
@@ -140,10 +140,10 @@ reviewPullRequest(ctx: ReviewContext): AsyncIterable<ReviewEvent>
 ```
 
 Everything above it — routes, SSE, UI — is independent of how the review is
-produced. It is implemented with the Claude Agent SDK (§7). A diff-only
-implementation calling the Messages API directly would fit the same signature and
-would be the fallback if the agent approach proves too slow or too expensive; it
-is the only part of the app that would change.
+produced. It is implemented as an agent loop over the OpenAI API (§7). A
+diff-only implementation — one call, no checkout, no tools — fits the same
+signature and is the fallback if the agent approach proves too slow or too
+expensive; it is the only part of the app that would change.
 
 ---
 
@@ -154,7 +154,7 @@ is the only part of the app that would change.
 | Framework | Next.js 16, App Router, TypeScript | Node runtime on all routes (not Edge) |
 | Auth | None — credentials from `.env` (§5) | Single-user local app; no session layer |
 | GitHub client | `@octokit/rest` | Typed, handles pagination and rate-limit headers |
-| LLM | `@anthropic-ai/claude-agent-sdk` | Claude Code harness; `claude-sonnet-5` by default |
+| LLM | `openai` | `chat.completions` with function tools; `gpt-5.4-mini` by default |
 | Git | `git` CLI via `child_process` | Must be on `PATH`; no JS git library |
 | Schema | `zod` | Shared by the `report_finding` tool schema, API validation, and the UI |
 | Styling | Tailwind CSS | `shadcn/ui` optional for components |
@@ -172,9 +172,9 @@ Two values in `.env`. No login flow, no OAuth app, no cookies, no session.
 
 ```
 # .env
-GITHUB_TOKEN=ghp_...            # or github_pat_... — a Personal Access Token
-ANTHROPIC_API_KEY=sk-ant-...
-REVIEW_MODEL=claude-sonnet-5    # optional
+GITHUB_TOKEN=github_pat_...   # a fine-grained Personal Access Token
+OPENAI_API_KEY=sk-proj-...
+REVIEW_MODEL=gpt-5.4-mini     # optional
 ```
 
 Both are read at startup. If either is missing the app does not crash — it serves
@@ -226,10 +226,14 @@ GITHUB_TOKEN=$(gh auth token)
 Not the default, because it makes the app's credentials depend on another tool's
 state, but it avoids creating and managing a PAT.
 
-### Anthropic key
+### OpenAI key
 
-From `console.anthropic.com`. A dedicated key with a spend limit is recommended,
+From `platform.openai.com`. A dedicated key with a spend limit is recommended,
 since this app is its only consumer and a runaway review loop spends real money.
+
+The startup probe (`GET /v1/models`) proves the key is *valid*; it cannot see
+whether the account has credit. A key with an exhausted quota passes setup and
+fails on the first review, so that failure names the cause explicitly (§11).
 
 `.env` is gitignored. Neither credential is ever serialized into a client
 component prop or a JSON response — the browser sees only data derived from them.
@@ -335,16 +339,21 @@ file-level note in the review body.
 
 ## 7. The AI review
 
-### 7.1 Engine: the Claude Agent SDK
+### 7.1 Engine: an explicit agent loop over the OpenAI API
 
-`reviewPullRequest()` is implemented with `@anthropic-ai/claude-agent-sdk` — the
-Claude Code harness as a library — running against a real checkout of the repo.
-This is what buys findings a diff cannot support: the agent can grep for a changed
-function's call sites, and read `git log`/`git blame` on the surrounding code.
+`reviewPullRequest()` runs its own agent loop against `chat.completions`, with a
+real checkout of the repo on disk. Each turn asks the model for the next step,
+runs the tools it names, feeds the results back, and repeats until it stops
+calling tools or hits a bound.
+
+There is no managed harness: the loop, the tool surface, and the containment are
+all in this codebase. That is more to own, but it makes the capability surface
+explicit — a tool that is not in `agent-tools.ts` cannot be called, because the
+loop never dispatches a name outside that table.
 
 The GitHub API is still used for everything in §6 (repo list, PR list, patches,
 posting the review). The clone is only there so the agent has a filesystem to
-explore. In particular **line anchoring (§8.3) still runs against the PR patch
+explore. In particular **line anchoring (§8.5) still runs against the PR patch
 from the API**, not against the checkout.
 
 ### 7.2 Preparing the checkout
@@ -376,141 +385,114 @@ GIT_CONFIG_KEY_0=http.extraHeader
 GIT_CONFIG_VALUE_0=Authorization: Basic <base64 of x-access-token:TOKEN>
 ```
 
-`GITHUB_TOKEN` and `ANTHROPIC_API_KEY` are stripped from the git subprocess
+`GITHUB_TOKEN` and `OPENAI_API_KEY` are stripped from the git subprocess
 environment: git needs neither, and a subprocess should not hold a credential it
 cannot use.
 
 The cache directory is gitignored, and `.cache/` is reported in the UI with a
 "clear cache" action, since it grows without bound.
 
-### 7.3 The query
+### 7.3 The loop
 
 ```ts
-import { query } from "@anthropic-ai/claude-agent-sdk";
+const messages = [
+  { role: "system", content: REVIEW_INSTRUCTIONS },
+  { role: "user", content: renderPrompt(ctx) },
+];
 
-const q = query({
-  prompt: `/code-review ${headSha}`,
-  options: {
-    model: process.env.REVIEW_MODEL ?? "claude-sonnet-5",
-    effort: "high",
-    cwd: checkoutPath,
+for (let turn = 1; turn <= MAX_TURNS; turn++) {
+  const response = await openai().chat.completions.create({
+    model: config.reviewModel,          // gpt-5.4-mini by default
+    messages,
+    tools: TOOL_DEFINITIONS,
+    reasoning_effort: config.reviewEffort,
+  }, { signal });
 
-    // Availability: read-only built-ins only. No Bash, Write, Edit, WebFetch.
-    tools: ["Read", "Grep", "Glob", "Skill"],
+  const message = response.choices[0]?.message;
+  messages.push(message);
+  if (!message.tool_calls?.length) break;
 
-    // Never load settings from the cloned repo — see §7.5
-    settingSources: [],
-
-    mcpServers: { review: reviewServer },
-    allowedTools: [
-      "Read", "Grep", "Glob", "Skill",
-      "mcp__review__report_finding",
-      "mcp__review__git_log_for_file",
-      "mcp__review__git_blame",
-    ],
-    canUseTool: denyAnythingElse,   // defence in depth, §7.4
-    maxTurns: 60,
-  },
-});
-
-for await (const message of q) { /* → SSE, §7.6 */ }
+  for (const call of message.tool_calls) {
+    const result = await runTool(name, args, toolContext);
+    messages.push({ role: "tool", tool_call_id: call.id, content: result.text });
+  }
+}
 ```
+
+Bounds: `MAX_TURNS` (20) and a 15-minute wall clock, both of which end the run as
+a *partial* review rather than an error — findings already reported are kept.
+
+Every turn re-sends the accumulated transcript, so cost grows with turns rather
+than with diff size (§11). `prompt_tokens_details.cached_tokens` is accumulated
+across turns and reported, because the cache hit rate is the first number to look
+at when a review costs more than expected.
 
 ### 7.4 Tool surface
 
-**Built-ins: `Read`, `Grep`, `Glob` only.** `Bash` is deliberately absent. The
-agent is pointed at a repository written by someone else, and a shell is the
-widest possible blast radius for a prompt injection carried in that repo's
-contents. Scoped `Bash(git log:*)` rules were considered and rejected — the
-matching is textual and easy to slip past.
-
-Git access is provided as narrow custom tools instead, each shelling out to `git`
-with fixed arguments and an interpolation-safe path:
+Six tools, all read-only. There is no shell, no write, and no network.
 
 | Tool | Purpose |
 |---|---|
-| `git_log_for_file` | Recent commits touching a path (`git log -n 20 --format=… -- <path>`) |
-| `git_blame` | Blame for a line range in a file at `head_sha` |
-| `report_finding` | The agent emits one classified finding (§8.2); returns `structuredContent` |
+| `read_file` | Read a file, optionally a line range; returns line-numbered text |
+| `search` | `git grep -n -I --extended-regexp -e <pattern>` over the work tree |
+| `list_files` | `git ls-files -- <glob>` |
+| `git_log_for_file` | Recent commits touching a path |
+| `git_blame` | Blame for a line range |
+| `report_finding` | The agent emits one classified finding (§8.2) |
 
-Defined with `tool()` + Zod and wrapped in `createSdkMcpServer({ name: "review", … })`,
-so they run in-process. `git_log_for_file` and `git_blame` carry
-`readOnlyHint: true` so they can be batched in parallel.
+`search` and `list_files` go through git rather than a shell or a globbing
+library: git already confines itself to the work tree, takes a fixed argument
+list, and is a dependency the checkout requires anyway. A pattern is passed after
+`-e` and a path after `--`, so neither can be read as a flag.
+
+**Every path argument passes through `resolveInside()`** (`lib/review/paths.ts`),
+which rejects absolute paths, traversal, NUL bytes, and anything resolving
+outside the checkout — including `.git/`, which holds the credential
+configuration and has no place in a review.
 
 `report_finding` is how findings leave the agent: each call validates against the
 finding schema (§8.2), enforces the classification rules (a `blocking` finding
 without a `failureScenario`, or a `style` finding marked `blocking`, comes back
-with `isError` so the agent must fix or downgrade it), runs line anchoring
-(§8.5), and streams the result to the browser immediately. This is strictly better than parsing the final result text —
-findings arrive as they are discovered, and a run that hits `maxTurns` still
-yields everything reported up to that point.
+as an error the model must fix), runs line anchoring (§8.5), and streams the
+result to the browser immediately. This is strictly better than parsing a final
+summary — findings arrive as they are discovered, and a run that hits the turn
+limit still yields everything reported up to that point.
 
-### 7.5 Rubric and prompt
+### 7.5 The rubric
 
-The rubric lives in `lib/review/instructions.ts`, appended to the Claude Code
-preset via `systemPrompt.append`. It covers reporting (call `report_finding`,
-once per finding, as you find it), scope, what to report and what not to, the
-classification rules from §8.1, proportionality, and that repository content is
-data rather than instructions.
+`lib/review/instructions.ts` is the system message. It covers reporting (call
+`report_finding`, once per finding, as you find it), scope, what to report and
+what not to, the classification rules from §8.1, proportionality, and that
+repository content is data rather than instructions.
 
-**The bundled `code-review` skill is deliberately not dispatched.** It is present
-in the session — `slash_commands` confirms it with `settingSources: []` — but it
-carries its own reporting contract naming a tool this session does not provide.
-When dispatched, the model followed the skill and emitted findings as prose JSON
-that never reached `report_finding`, so every finding was lost. Measured on the
-same PR:
-
-| Prompt | Findings recorded | Turns | Time | Cost |
-|---|---|---|---|---|
-| `/code-review` dispatched | 0 | 0 | 61s | $0.109 |
-| Own rubric | 1 | 4 | 21s | $0.077 |
-
-The engine still reports whether the skill is present on the `done` event, so a
-future SDK change is visible rather than silent.
-
-> **SDK MCP tools are deferred behind tool search by default**, so their schemas
-> are absent from the turn-1 prompt. The review server sets `alwaysLoad: true`:
-> `report_finding` is the only way a finding leaves the session, and a model that
-> has not seen it writes findings into prose where they are discarded.
-
-> **`settingSources: []` is a security control, not a default.** With
-> `settingSources: ['project']`, the SDK loads `.claude/` from `cwd` **and every
-> parent directory** — meaning the cloned repository's own `CLAUDE.md`, skills,
-> commands, and settings. A skill can inject dynamic context with `` !`command` ``
-> lines that execute *before* Claude sees the content, so loading project
-> settings from an untrusted clone is remote code execution, not merely prompt
-> injection. Never set it while `cwd` is a checkout of someone else's repo.
-
-`allowedTools` is deliberately **not** set. A bare tool name there auto-approves
-the call before `canUseTool` runs, which would make the guard in §7.3 dead code;
-the SDK warns about exactly this. Leaving it unset routes every call through the
-guard.
+The reporting contract is restated at the end of the user message, after the
+diff, because it is the instruction most easily lost in a long prompt: anything
+not passed to `report_finding` is discarded, however well written.
 
 ### 7.6 Streaming protocol
 
-`POST /api/review` returns `text/event-stream`. The SDK's message stream maps
-onto it:
+`POST /api/review` returns `text/event-stream`. The loop maps onto it:
 
-| SDK message | SSE event |
+| Loop event | SSE event |
 |---|---|
-| `system` / `init` | `status` — session started; assert the skill list |
-| `assistant` with `tool_use` | `status` — names the file being read or grepped |
-| `mcp__review__report_finding` call | `finding` — one validated, anchored finding |
-| `result`, `subtype: "success"` | `done` — with `num_turns`, `usage`, `total_cost_usd` |
-| `result`, other subtypes | `error` — `error_max_turns` reports a partial review |
+| Checkout progress | `status` — cloning, fetching, checking out |
+| Assistant text | `message` |
+| A tool call | `status`/`tool` — names the file being read or searched |
+| `report_finding` accepted | `finding` — one validated, anchored finding |
+| Loop ends normally | `done` — turns, cost, token usage, cache hit rate |
+| Turn limit, timeout, cancel | `error` with `partial: true` — findings are kept |
 
 ```
 event: status   data: {"phase":"cloning"}
 event: status   data: {"phase":"reading","path":"src/auth/session.ts"}
 event: finding  data: {...Finding}
-event: done     data: {"count":6,"turns":23,"costUsd":0.11,"usage":{...}}
+event: done     data: {"count":6,"turns":9,"costUsd":0.04,"usage":{...}}
 event: error    data: {"message":"..."}
 ```
 
-A `: heartbeat` comment is emitted every 15s. Agent runs have long quiet stretches
-— a large Grep, a long thinking block — and without it a live review looks dead.
-Running locally there is no proxy or platform timeout, so a review may take as
-long as it takes.
+A `: heartbeat` comment is emitted every 15s, so a long quiet stretch cannot be
+mistaken for a dead connection. Running locally there is no proxy or platform
+timeout, so a review may take as long as its bounds allow.
 
 ---
 
@@ -765,30 +747,46 @@ GitHub marks `generated`, binary files, and paths matching `.gitattributes`
 
 ### Cost
 
-Measured on real pull requests with `claude-sonnet-5` at `effort: high`:
+Cost tracks **turns × accumulated transcript**, not diff size: every turn
+re-sends everything read so far. A small diff that needs deep verification costs
+more than a large diff that does not.
 
-| Pull request | Diff | Findings | Turns | Time | Cost |
+Measured with the previous engine, on the same four pull requests, as the
+baseline this one is judged against:
+
+| Pull request | Diff | Findings | Turns | Time |
+|---|---|---|---|---|
+| One-line config change | 2 lines | 1 | 4 | 21s |
+| Parser bug fix | 33 lines | 1 | 5 | 134s |
+| Header-handling fix | 17 lines | 1 | 14 | 278s |
+| Feature, 4 files | 58 lines | 2 | 10 | 141s |
+
+First measurement on this engine, same PR as the first row above:
+
+| | Engine | Turns | Time | Cost | Cache hit |
 |---|---|---|---|---|---|
-| One-line config change | 2 lines | 1 | 4 | 21s | $0.08 |
-| Parser bug fix | 33 lines | 1 | 5 | 134s | $0.21 |
-| Header-handling fix | 17 lines | 1 | 14 | 278s | $0.49 |
-| Feature, 4 files | 58 lines | 2 | 10 | 141s | $0.26 |
+| Before | Claude Sonnet 5, managed harness | 4 | 21s | $0.077 | — |
+| After | `gpt-5.4-mini`, own loop | 8 | 69s | **$0.021** | 82% |
 
-Cost tracks *investigation depth*, not diff size — the 17-line change was the
-most expensive of the four, because verifying it required tracing every write
-path. The rubric's proportionality guidance exists to bound this; adding it cut
-that review from 483s/$0.65 to 278s/$0.49 while finding one more real issue.
+3.7× cheaper for the same finding, at the price of more turns and more wall
+clock — the model explores in smaller steps. The 82% cache hit rate is why the
+gap is larger than the per-token ratio alone would suggest.
 
-**`effort` is the cost lever, and it is not free.** The same PR at `medium`
-finished in 179s for $0.33 but missed the finding that `high` caught. `high` is
-the default because review quality is the reason for choosing an agent at all;
-`REVIEW_EFFORT` lowers it per run when a cheap pass is worth more than a thorough
-one.
+Prices live in `lib/review/pricing.ts` ($0.75/M input, $0.075/M cached, $4.50/M
+output for `gpt-5.4-mini`); an unmodelled model reports a **null** cost rather
+than a wrong one, and the UI says "unknown".
 
-The SDK reports `total_cost_usd`, `num_turns` and `usage` on the `result`
-message, surfaced on the `done` event and shown in the UI. With no history (§13)
-that number is the only cost feedback before the Console bill, so a spend limit
-on the key (§5) is the backstop.
+Two levers, in order:
+
+1. **Cache hit rate.** The system message and the diff are identical on every
+   turn. A low hit rate means the prefix is churning and there is a saving with
+   no quality cost. It is on the `done` event for exactly this reason.
+2. **`reasoning_effort`.** `high` is the default. Lowering it is a real quality
+   trade — on the previous engine the same PR ran a third cheaper at `medium`
+   and missed a real finding.
+
+`MAX_TURNS` is 20. No measured review exceeded 14, so the cap bounds a runaway
+without truncating normal work.
 
 ### Failure modes
 
@@ -800,7 +798,9 @@ on the key (§5) is the backstop.
 | PR head moved mid-review | `commit_id` mismatch on post → offer re-review |
 | `result` subtype `error_max_turns` | Partial review — show findings received, offer re-run |
 | `result` subtype `error_during_execution` | `error` event with the SDK message and a retry button |
-| Anthropic 429 / 529 | Surfaced by the SDK as an API retry; persistent failure ends the run |
+| OpenAI 401 | "OPENAI_API_KEY was rejected" — the key is invalid or revoked |
+| OpenAI 429, quota | Quota exhausted is named separately from rate limiting: the first needs credit, the second needs waiting |
+| OpenAI 404 on the model | Names `REVIEW_MODEL` and says the account cannot reach it |
 | `git` not on `PATH` | Setup screen: the app needs a git binary (§14) |
 | Clone/fetch fails (network, auth, size) | `error` event naming the git step that failed |
 | Corrupt cache directory | Delete and re-clone once, then report if it fails again |
@@ -817,18 +817,18 @@ repository written by someone else.**
 
 ### Running an agent on untrusted code
 
-- **`settingSources: []`.** With `'project'`, the SDK loads `.claude/` from `cwd`
-  and every parent — i.e. the cloned repo's own `CLAUDE.md`, skills, commands and
-  settings. A skill can inject dynamic context with `` !`command` `` lines that
-  run *before* Claude sees the content, so loading project settings from an
-  untrusted clone is remote code execution. This is the single most important
-  line in the query options (§7.5).
-- **No `Bash` tool.** Availability is restricted to `Read`, `Grep`, `Glob`,
-  `Skill`. Git access is via narrow custom tools with fixed arguments (§7.4), not
-  a shell. Scoped `Bash(git log:*)` rules were rejected as too easy to slip past.
-- **No write tools.** `Write`, `Edit`, `WebFetch`, `WebSearch` are all absent, so
-  the agent cannot modify the checkout, reach the network, or exfiltrate what it
-  reads. `canUseTool` denies anything outside the allowlist as defence in depth.
+- **The tool table is the allowlist.** `lib/review/agent-tools.ts` defines every
+  capability the agent has, and the loop refuses to dispatch a name that is not
+  in it. With no managed harness there is no permission layer to misconfigure —
+  but equally, nothing else to fall back on, so this file is the boundary.
+- **No shell, no writes, no network.** The six tools read files, search, list,
+  and report. There is no `bash`, no write or edit, and no fetch, so the agent
+  cannot modify the checkout, reach the network, or exfiltrate what it reads.
+- **Every path is confined.** `resolveInside()` rejects absolute paths,
+  traversal, NUL bytes, and anything resolving outside the checkout — including
+  `.git/`, which holds credential configuration and the object store. This is the
+  one guard standing between a model-supplied string and the filesystem, so it is
+  asserted independently of the tool that calls it.
 - **Nothing in the checkout is executed.** No `npm install`, no build, no test
   run. The repo is read, never run.
 - **Repository content is untrusted input.** A PR can contain "ignore previous
@@ -847,11 +847,11 @@ Two consequences of pointing this at a private repository, both worth being
 deliberate about rather than discovering later:
 
 - **Private source leaves your machine.** Running a review sends the repository
-  content the agent reads — diffs, and whole files it opens — to the Anthropic
+  content the agent reads — diffs, and whole files it opens — to the OpenAI
   API. That is inherent to the design, not a leak, but it is a decision to make
   knowingly for proprietary or client code, and it may be governed by your
-  employer's policy on third-party AI services. Anthropic offers zero-data-
-  retention arrangements for organizations that require them; check what your
+  employer's policy on third-party AI services. OpenAI offers zero-retention and
+  enterprise arrangements for organizations that require them; check what your
   account is on before reviewing something sensitive.
 - **`.cache/repos/` holds private source in plaintext on disk.** It persists
   between runs by design (§7.2). It is gitignored, but it is not encrypted beyond
@@ -865,10 +865,10 @@ is explicit.
 ### The rest
 
 - **Bind to localhost.** The app holds credentials that read your private repos
-  and spend your Anthropic balance, with no authentication. `next dev` binds to
+  and spend your OpenAI balance, with no authentication. `next dev` binds to
   localhost by default; do not pass `--hostname 0.0.0.0` or tunnel it.
 - **`.env` is gitignored**, and neither credential is serialized into a client
-  prop or a JSON response. Error paths must scrub them: an Anthropic 401 is
+  prop or a JSON response. Error paths must scrub them: an OpenAI 401 is
   reported as "invalid key", never by echoing the request.
 - **The token must not land in `.git/config`.** Authenticate clones per
   invocation, never with `https://token@github.com/...` (§7.2).
@@ -886,8 +886,8 @@ is explicit.
 - A review cannot be resumed. Tab closed, dev server restarted, connection
   dropped → re-run it, and pay for it again.
 - No review history, no cross-PR statistics, no record of what you posted.
-- Cost tracking is per-review only — the running total lives in your Anthropic
-  Console, not here. This stings more with agent reviews than it would with
+- Cost tracking is per-review only — the running total lives in your OpenAI
+  dashboard, not here. This stings more with agent reviews than it would with
   single-shot ones (§11).
 - `.cache/repos/` is the one thing on disk that survives a restart, and it is a
   cache: deleting it costs a clone, nothing else.
@@ -904,9 +904,9 @@ The migration path is a single `reviews` table keyed by
 
 ```
 GITHUB_TOKEN=            # PAT — fine-grained (preferred) or classic `repo`; §5
-ANTHROPIC_API_KEY=       # console.anthropic.com; set a spend limit
-REVIEW_MODEL=            # optional; default claude-sonnet-5
-REVIEW_EFFORT=           # optional; default high — lower to medium to cut cost
+OPENAI_API_KEY=          # platform.openai.com; set a spend limit
+REVIEW_MODEL=            # optional; default gpt-5.4-mini
+REVIEW_EFFORT=           # optional; minimal|low|medium|high|xhigh, default high
 CACHE_DIR=               # optional; default ./.cache/repos
 ```
 
@@ -924,7 +924,7 @@ Requirements:
 
 - **Node 20+**, pinned to 22.12.0 in `.nvmrc`. Next 16 requires it; the system
   Node (18.20.3) is too old, so use `nvm use`.
-- **`git` on `PATH`** — the Agent SDK reviews a real checkout (§7.2).
+- **`git` on `PATH`** — reviews run against a real checkout (§7.2).
 - **Disk space** for `.cache/repos/`. Partial clones keep this modest, but it
   grows with every repo reviewed; the UI exposes a "clear cache" action.
 
@@ -942,8 +942,8 @@ rather than failing on the first API call:
 | `GITHUB_TOKEN` invalid | `GET /user` returns 401 → "token rejected by GitHub" |
 | `GITHUB_TOKEN` under-scoped | Detected on first use; the failing operation names the missing permission |
 | Token sees no private repos | Hint to check the token grants access to all repositories (§5) |
-| `ANTHROPIC_API_KEY` missing | Browsing works; "Review this PR" is disabled with a reason |
-| `ANTHROPIC_API_KEY` invalid | `GET /v1/models` returns 401/403 → "key rejected". A free, zero-token probe; inference goes through the Agent SDK |
+| `OPENAI_API_KEY` missing | Browsing works; "Review this PR" is disabled with a reason |
+| `OPENAI_API_KEY` invalid | `GET /v1/models` returns 401/403 → "key rejected". A free, zero-token probe; it cannot detect an exhausted quota, which surfaces on the first review |
 | `git` missing from `PATH` | Setup screen: install git; reviews cannot run without it |
 
 ### Not for deployment
@@ -1014,11 +1014,13 @@ both are tested, by extracting them into `lib/` rather than by testing React.
 | `lib/review/anchor.ts` | In-hunk, snap-within-3, unsnappable → `lineValid: false`, file-not-in-PR → dropped (§8.5) |
 | `lib/findings/*` | Schema constraints (`style` ⇒ `nitpick`, `blocking` ⇒ `failureScenario`), Conventional Comments rendering (§8.1, §6) |
 | `lib/review/checkout.ts` | Path confinement, token never written to `.git/config` (§7.2, §12) |
+| `lib/review/paths.ts` | Traversal, absolute paths, sibling-prefix escapes, `.git/` refusal (§12) |
+| `lib/review/agent-tools.ts` | Every tool refuses an out-of-tree path; an undefined tool name is never dispatched |
+| `lib/review/engine.ts` | Loop termination, malformed tool calls, token accounting, each API failure mode |
 | Reducer | Every transition in the finding lifecycle, including delete + undo (§8.3) |
 
 Security invariants (§12) get tests asserting the *negative*: that a token does
 not appear in an error, that a path outside the cache directory is rejected.
 Those are the cases a refactor silently breaks.
 
-External boundaries — Octokit, `git`, the Anthropic API, the Agent SDK — are
-mocked. These are unit tests; they must run offline with no credentials.
+External boundaries — Octokit, `git`, and the OpenAI API — are mocked. These are unit tests; they must run offline with no credentials.

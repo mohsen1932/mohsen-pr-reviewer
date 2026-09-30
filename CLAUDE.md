@@ -1,12 +1,12 @@
 # Local PR Reviewer
 
 An AI pull-request reviewer that runs on localhost. Sign-in-less, single-user,
-no database. Reviews run the Claude Code harness (Agent SDK) against a real
-checkout of the PR's repo; findings are triaged by a human and posted back to
-GitHub as one review with inline comments.
+no database. Reviews run an agent loop over the OpenAI API against a real checkout of the
+PR's repo; findings are triaged by a human and posted back to GitHub as one
+review with inline comments.
 
-**Status: M3b complete**, rubric tuned against real PRs. 417 tests at 97%
-coverage. Next: TASKS.md M4 (review UI).
+**Status: M3b complete**, rebuilt on the OpenAI Responses API (`gpt-5.4-mini`).
+462 tests at 97% coverage. Next: TASKS.md M4 (review UI).
 
 ## Where things are decided
 
@@ -25,63 +25,59 @@ change. Don't silently diverge.
 ## Invariants — do not break these
 
 These are security-critical and easy to "helpfully" undo while refactoring.
-Every one has a comment at its call site; if you find yourself removing one,
-stop and ask.
+There is no managed harness behind them — this codebase *is* the boundary. If you
+find yourself removing one, stop and ask.
 
-1. **`settingSources: []`** in the Agent SDK query. `cwd` is a checkout of
-   someone else's repository. With `'project'`, the SDK would load that repo's
-   `.claude/` — and a skill there can run shell commands via `` !`cmd` `` before
-   Claude reads it. This is the difference between prompt injection and remote
-   code execution. (SPEC.md §7.5, §12)
-2. **The agent never gets `Bash`, `Write`, `Edit`, `WebFetch`, or `WebSearch`.**
-   Availability is `Read`, `Grep`, `Glob`, `Skill`. Git access goes through
-   fixed-argument custom MCP tools, never a shell — scoped `Bash(git log:*)`
-   rules were considered and rejected as too easy to slip past. (§7.4)
-3. **Nothing in a checkout is ever executed.** No install, no build, no test run.
-   The repo is read, never run. (§12)
-4. **No credential reaches a client component prop, a JSON response, or a log
-   line.** Error paths must scrub: an Anthropic 401 renders as "invalid key",
-   never by echoing the request. (§12)
-5. **The GitHub token never lands in `.git/config`.** Authenticate clones with a
-   per-invocation `http.extraHeader`, never `https://token@github.com/...`. (§7.2)
-6. **Nothing writes to a repository** except the single `createReview` call. (§12)
-7. **Findings render as sanitized markdown** — no raw HTML, no `javascript:`.
-   Bodies derive from repo content an attacker can influence by opening a PR. (§12)
+1. **`lib/review/agent-tools.ts` is the allowlist.** It defines every capability
+   the agent has, and `engine.ts` refuses to dispatch a name that is not in it.
+   Adding a tool there grants it; there is no second gate.
+2. **No shell, no writes, no network in tools.** Six read-only tools. `search`
+   and `list_files` go through `git grep` / `git ls-files` with fixed argument
+   lists — never a shell, and never a pattern in flag position.
+3. **Every model-supplied path goes through `resolveInside()`.** It rejects
+   absolute paths, traversal, NUL bytes, and `.git/`. It is the only thing
+   between a model string and the filesystem. (§12)
+4. **Nothing in a checkout is ever executed.** No install, no build, no test run.
+   The repo is read, never run.
+5. **No credential reaches a client component prop, a JSON response, or a log
+   line.** Error paths must scrub: an OpenAI 401 renders as "invalid key", never
+   by echoing the request.
+6. **The GitHub token never lands in `.git/config` or in argv.** Authenticate
+   clones with `GIT_CONFIG_*` environment variables (§7.2).
+7. **Nothing writes to a repository** except the single `createReview` call.
+8. **Findings render as sanitized markdown** — no raw HTML, no `javascript:`.
+   Bodies derive from repository content an attacker can influence by opening a
+   PR.
 
 ## Easy things to get wrong
 
-- The LLM dependency is **`@anthropic-ai/claude-agent-sdk`**, not
-  `@anthropic-ai/sdk`. This app drives the Claude Code harness, not the Messages
-  API. A diff-only Messages API implementation is the documented fallback
-  (BACKLOG D1), not the current design.
-- Default model is **`claude-sonnet-5`**, overridable via `REVIEW_MODEL`.
+- The LLM dependency is **`openai`**, used through **`responses.create`** — not
+  chat completions, which rejects function tools combined with a reasoning
+  effort on these models. The agent loop is ours, in `lib/review/engine.ts`.
+- Responses-API tools are **flat** (`{type, name, description, parameters}`),
+  not nested under `function` as chat completions requires. Tool results go back
+  as `{type: "function_call_output", call_id, output}`, and the whole `output`
+  array is echoed into `input` so the model keeps its reasoning chain.
+- Default model is **`gpt-5.4-mini`**, overridable via `REVIEW_MODEL`. A model
+  missing from `lib/review/pricing.ts` reports a **null** cost — never guess a
+  price to fill the gap.
 - **Node 22.12.0**, pinned in `.nvmrc`. The system Node is 18.20.3 and will not
   run Next 16 — `nvm use` before anything, or npm scripts fail confusingly.
 - **Next 16**, not 15 as originally spec'd: Next 15 bundles a postcss with a
-  high-severity advisory fixable only by upgrading. SPEC.md §4 records the
-  change.
+  high-severity advisory fixable only by upgrading. SPEC.md §4 records it.
 - `npm run dev` and `npm run start` pass `--hostname 127.0.0.1` deliberately.
-  Next otherwise binds 0.0.0.0 and advertises a LAN URL, which contradicts
-  invariant 4 above.
-- `git` must be on `PATH` at **≥ 2.19** — the clone uses `--filter=blob:none`.
-  A `--depth` shallow clone would break `git blame`, which is half the reason for
+  Next otherwise binds 0.0.0.0 and advertises a LAN URL, contradicting
+  invariant 5.
+- **`git` on `PATH` at ≥ 2.19** — the clone uses `--filter=blob:none`. A
+  `--depth` shallow clone would break `git blame`, which is half the reason for
   cloning at all.
 - **Two sources of repo data, kept separate.** The GitHub API supplies what the
   PR changed (patches, and therefore line anchoring). The checkout is only what
   the agent explores. Never anchor a finding against the checkout. (§3, §8.5)
-- Project review instructions live in **`lib/review/instructions.ts`**, appended
-  to the Claude Code preset. Deliberately not `.claude/skills/`, which would be
-  confused with configuration for Claude Code sessions in this repo.
-- **Never set `allowedTools`** on the review query. A bare name there
-  auto-approves the call before `canUseTool` runs, silently disabling the guard.
-- **Do not dispatch `/code-review`.** The bundled skill has its own reporting
-  contract naming a tool this session lacks; dispatching it made the model write
-  findings as prose that never reached `report_finding`. The rubric lives in
-  `lib/review/instructions.ts`. SPEC.md §7.5 has the measurements.
-- **Keep `alwaysLoad: true` on the review MCP server.** Tool search defers SDK
-  MCP tools, and a model that never sees `report_finding` cannot report.
 - Scripts under `scripts/` are `.mts` and run via `tsx` — the package is CJS, so
   top-level await needs an explicit ESM extension.
+- **Cost tracks turns, not diff size.** Every turn re-sends the transcript. When
+  a review is expensive, read the cache hit rate on the `done` event first.
 
 ## Conventions
 

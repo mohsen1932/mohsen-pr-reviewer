@@ -23,7 +23,7 @@ const gitMissing = () => {
   );
 };
 
-const ENV = ["GITHUB_TOKEN", "ANTHROPIC_API_KEY"] as const;
+const ENV = ["GITHUB_TOKEN", "OPENAI_API_KEY"] as const;
 let saved: Record<string, string | undefined>;
 
 beforeEach(() => {
@@ -43,17 +43,17 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-async function report(env: { github?: string; anthropic?: string } = {}) {
+async function report(env: { github?: string; openai?: string } = {}) {
   if (env.github === undefined) delete process.env.GITHUB_TOKEN;
   else process.env.GITHUB_TOKEN = env.github;
-  if (env.anthropic === undefined) delete process.env.ANTHROPIC_API_KEY;
-  else process.env.ANTHROPIC_API_KEY = env.anthropic;
+  if (env.openai === undefined) delete process.env.OPENAI_API_KEY;
+  else process.env.OPENAI_API_KEY = env.openai;
   vi.resetModules();
   const { runStartupChecks } = await import("./startup");
   return runStartupChecks();
 }
 
-const ALL = { github: "github_pat_11ABCDE0123456789abcdefgh", anthropic: "sk-ant-api03-abcd" };
+const ALL = { github: "github_pat_11ABCDE0123456789abcdefgh", openai: "sk-proj-abcdefghijklmnopqrst" };
 const check = (r: Awaited<ReturnType<typeof report>>, id: string) =>
   r.checks.find((c) => c.id === id)!;
 
@@ -101,7 +101,7 @@ describe("GitHub check", () => {
   });
 
   it("explains how to create a token when unset", async () => {
-    const c = check(await report({ anthropic: ALL.anthropic }), "github");
+    const c = check(await report({ openai: ALL.openai }), "github");
     expect(c).toMatchObject({ ok: false, problem: "Not set" });
     expect(c.fix).toContain("fine-grained");
   });
@@ -131,35 +131,35 @@ describe("GitHub check", () => {
   });
 });
 
-describe("Anthropic check", () => {
+describe("OpenAI check", () => {
   it("probes with the key and reports the model", async () => {
-    const c = check(await report(ALL), "anthropic");
-    expect(c).toMatchObject({ ok: true, detail: "model: claude-sonnet-5" });
+    const c = check(await report(ALL), "openai");
+    expect(c).toMatchObject({ ok: true, detail: "model: gpt-5.4-mini" });
     const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
     expect(url).toContain("/v1/models");
-    expect((init.headers as Record<string, string>)["x-api-key"]).toBe(ALL.anthropic);
+    expect((init.headers as Record<string, string>).authorization).toContain(ALL.openai);
   });
 
   it("explains how to create a key when unset", async () => {
-    const c = check(await report({ github: ALL.github }), "anthropic");
+    const c = check(await report({ github: ALL.github }), "openai");
     expect(c).toMatchObject({ ok: false, problem: "Not set" });
     expect(c.fix).toContain("spend limit");
   });
 
   it.each([401, 403])("reports %i as a rejected key", async (status) => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status })));
-    const c = check(await report(ALL), "anthropic");
-    expect(c).toMatchObject({ ok: false, problem: "Rejected by Anthropic" });
+    const c = check(await report(ALL), "openai");
+    expect(c).toMatchObject({ ok: false, problem: "Rejected by OpenAI" });
   });
 
   it("reports other non-OK statuses with the code", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 500 })));
-    expect(check(await report(ALL), "anthropic").problem).toContain("500");
+    expect(check(await report(ALL), "openai").problem).toContain("500");
   });
 
   it("reports a network failure", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("fetch failed"); }));
-    expect(check(await report(ALL), "anthropic").problem).toBe("fetch failed");
+    expect(check(await report(ALL), "openai").problem).toBe("fetch failed");
   });
 });
 
@@ -169,20 +169,20 @@ describe("aggregate", () => {
     expect(r).toMatchObject({ ready: true, canBrowse: true });
   });
 
-  it("allows browsing without an Anthropic key, but is not ready", async () => {
+  it("allows browsing without an OpenAI key, but is not ready", async () => {
     const r = await report({ github: ALL.github });
     expect(r).toMatchObject({ ready: false, canBrowse: true });
   });
 
   it("blocks browsing without a GitHub token", async () => {
-    const r = await report({ anthropic: ALL.anthropic });
+    const r = await report({ openai: ALL.openai });
     expect(r).toMatchObject({ ready: false, canBrowse: false });
   });
 
   it("runs every check even when an earlier one fails", async () => {
     gitMissing();
     const r = await report({});
-    expect(r.checks.map((c) => c.id).sort()).toEqual(["anthropic", "git", "github"]);
+    expect(r.checks.map((c) => c.id).sort()).toEqual(["git", "github", "openai"]);
     expect(r.checks.every((c) => !c.ok)).toBe(true);
   });
 

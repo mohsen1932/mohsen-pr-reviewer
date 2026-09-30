@@ -11,7 +11,7 @@ runnable: finish one and you have something you can use.
 
 - A **fine-grained PAT** with access to **all repositories**, with Contents: Read,
   Pull requests: Read and write (§5)
-- An Anthropic API key with a spend limit (§5, §11)
+- An OpenAI API key with a spend limit (§5, §11)
 - `git` ≥ 2.19 on `PATH` — needed for `--filter=blob:none` (§7.2)
 
 **Every milestone ships with unit tests** covering the logic it adds — 80%
@@ -33,16 +33,16 @@ missing, and `/repos` shows your GitHub login.
       Node 20+ (§4)
 - [x] **T1.2** `.gitignore`: `.env`, `.cache/`, `node_modules` ⚠️ (§12, §14)
 - [x] **T1.3** `.env.example` with all five keys and empty values (§14)
-- [x] **T1.4** `lib/config.ts` — read and type `GITHUB_TOKEN`, `ANTHROPIC_API_KEY`,
+- [x] **T1.4** `lib/config.ts` — read and type `GITHUB_TOKEN`, `OPENAI_API_KEY`,
       `REVIEW_MODEL`, `REVIEW_EFFORT`, `CACHE_DIR` with defaults (§14)
 - [x] **T1.5** `lib/github.ts` — module-level Octokit from `GITHUB_TOKEN` (§3, §6)
 - [x] **T1.6** `lib/startup.ts` — validate on boot: `git` on `PATH`, `GET /user`
-      for the token, one-turn probe for the Anthropic key (§14)
+      for the token, `GET /v1/models` probe for the OpenAI key (§14)
 - [x] **T1.7** `SetupNotice.tsx` — one message per missing or rejected
       credential, plus missing `git` (§14)
 - [x] **T1.8** `app/page.tsx` — redirect to `/repos`, or render setup notice
 - [x] **T1.9** ⚠️ Credential scrubbing helper — no error path may echo a token or
-      key; an Anthropic 401 renders as "invalid key" (§12)
+      key; an OpenAI 401 renders as "invalid key" (§12)
 - [x] **T1.11** Vitest + `@vitest/coverage-v8`, 80% thresholds, `npm run check` (§16)
 - [x] **T1.12** Unit tests for `scrub`, `config`, `github`, `startup` — including
       negative assertions that a failing check never echoes a credential (§12, §16)
@@ -82,7 +82,7 @@ private repo.
 
 ## M3 — Checkout + agent
 
-**✅ Complete.** 340 tests, 97% coverage. Verified against a real private repo.
+**✅ Complete.** Rebuilt on the OpenAI API. Verified against a real private repo.
 
 **Done when:** a CLI script clones a PR head and runs `query()` against it,
 printing raw SDK messages.
@@ -94,28 +94,30 @@ printing raw SDK messages.
       must never land in `.git/config` (§7.2, §12)
 - [x] **T3.4** Repo-size guard (2 GB) — refuse rather than fill the disk (§11)
 - [x] **T3.5** ⚠️ Confine checkout paths to `CACHE_DIR`, no-`..` check (§12)
-- [x] **T3.6** Custom tool `git_log_for_file` — fixed args, `readOnlyHint` (§7.4)
-- [x] **T3.7** Custom tool `git_blame` — fixed args, `readOnlyHint` (§7.4)
-- [x] **T3.8** `createSdkMcpServer({ name: "review", ... })` wiring (§7.3, §7.4)
-- [x] **T3.9** `lib/review/engine.ts` — `query()` with `model`, `effort`, `cwd`,
-      `tools`, `mcpServers`, `allowedTools`, `maxTurns` (§7.3)
+- [x] **T3.6** Tool `git_log_for_file` — fixed args, read-only (§7.4)
+- [x] **T3.7** Tool `git_blame` — fixed args, read-only (§7.4)
+- [x] **T3.8** Tool table + dispatcher, including `read_file` / `search` / `list_files` (§7.4)
+- [x] **T3.9** `lib/review/engine.ts` — explicit agent loop over
+      `chat.completions` with tools, effort, and bounds (§7.3)
 - [x] **T3.10** ⚠️ **`settingSources: []`** — never load `.claude/` from the
       cloned repo. Single most important line in the options (§7.5, §12)
-- [x] **T3.11** ⚠️ `canUseTool` denying anything outside the allowlist (§7.3, §12)
-- [x] **T3.12** Project review skill in `lib/review/skills/` + `plugins` option
-      (not `.claude/skills/` — see CLAUDE.md) (§7.5)
-- [x] **T3.13** Verify the bundled `code-review` skill is present — read
-      `slash_commands` on the `system`/`init` message. **If absent, move the
-      rubric into the app's own skill** (§7.5)
+- [x] **T3.11** ⚠️ The loop refuses to dispatch any tool name outside the table —
+      the table *is* the allowlist (§7.4, §12)
+- [x] **T3.12** Review rubric in `lib/review/instructions.ts`, sent as the system
+      message (§7.5)
+- [x] **T3.13** Per-model pricing table; an unmodelled model reports a null cost
+      rather than a wrong one (§11)
 - [x] **T3.14** `scripts/review.ts` — CLI harness taking `owner/repo#n`
-- [x] **T3.15** Wall-clock cap (15 min) via `q.interrupt()` (§11)
+- [x] **T3.15** Wall-clock cap (15 min) and `MAX_TURNS`, both ending as partial (§11)
 
-- [x] **T3.16** ⚠️ Tests: path confinement, token absent from `.git/config`, git tool argument safety (§12, §16)
+- [x] **T3.16** ⚠️ Tests: path confinement, token absent from `.git/config` and
+      from argv, tool argument safety, undispatchable tool names (§12, §16)
 ---
 
 ## M3b — Findings
 
-**✅ Complete.** 417 tests, 97% coverage. Rubric tuned against 4 real PRs.
+**✅ Complete.** Rubric tuned against 4 real PRs on the previous engine; the
+rubric itself carried over unchanged.
 
 **Done when:** the CLI prints validated, anchored findings as JSON.
 
@@ -123,13 +125,13 @@ printing raw SDK messages.
       `FindingSchema` (§8.1, §8.2)
 - [x] **T3b.2** Classification constraints — `style` ⇒ `nitpick`; `security` ⇏
       `nitpick`; `blocking` ⇒ `failureScenario` required (§8.1, §8.2)
-- [x] **T3b.3** `report_finding` tool — validate, return `isError` with a usable
-      message so the agent fixes or downgrades, emit `structuredContent` (§7.4)
+- [x] **T3b.3** `report_finding` tool — validate, return an error result with a
+      usable message so the agent fixes or downgrades (§7.4)
 - [x] **T3b.4** `lib/review/anchor.ts` — file-in-PR check, hunk range check,
       ±3-line snap, `lineValid: false` fallback (§8.5)
 - [x] **T3b.5** `ReviewEvent` types + `reviewPullRequest()` async iterable (§3)
-- [x] **T3b.6** Map SDK messages → `status` / `finding` / `done` / `error`,
-      including `error_max_turns` as a *partial* result (§7.6, §11)
+- [x] **T3b.6** Map loop events → `status` / `finding` / `done` / `error`,
+      including the turn limit and timeout as *partial* results (§7.6, §11)
 - [x] **T3b.7** Iterate the rubric against 3–5 real PRs; tune for precision (§7.5)
 
 - [x] **T3b.8** Tests: schema constraints, `report_finding` rejection paths, anchoring (in-hunk / snap / unsnappable / not-in-PR) (§16)
@@ -229,7 +231,7 @@ refresh.
       `git` requirement (§5, §14)
 - [ ] **T8.2** ⚠️ Document that it is **local-only and unauthenticated** — never
       expose the port (§12, §14)
-- [ ] **T8.3** ⚠️ Document that private source is sent to the Anthropic API and
+- [ ] **T8.3** ⚠️ Document that private source is sent to the OpenAI API and
       cached in plaintext under `.cache/` (§12)
 - [ ] **T8.4** Cost expectations — 2–5 min and tens of cents per review (§11)
 - [ ] **T8.5** Screenshot of the review screen

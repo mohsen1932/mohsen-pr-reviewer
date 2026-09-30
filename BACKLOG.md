@@ -8,25 +8,31 @@ idea, or an explicit decision not to build something.
 
 ## Open decisions
 
-### D1. Claude API vs. `@anthropic-ai/claude-agent-sdk` — **decided: Agent SDK**
+### D1. Review engine — **decided: own agent loop over the OpenAI API**
 
-Closed once the target settled as local-only. The objections that had ruled it out
-on Vercel — no writable filesystem, no process outliving a request, no place to
-put a clone — do not apply to `npm run dev` on a laptop.
+Third position on this question, each driven by a changed premise.
 
-What it buys (SPEC.md §7): grep over a real checkout to find the call sites of a
-changed function, `git log`/`git blame` on the surrounding code, and Claude Code's
-bundled `code-review` skill instead of a hand-written rubric string.
+1. Claude Messages API, diff-only — chosen while the target was Vercel.
+2. Claude Agent SDK — chosen once the app became local-only, since a clone and a
+   long-running process became possible. Built and measured against four real
+   PRs: 5 findings, no false positives.
+3. **OpenAI `chat.completions` with an agent loop of our own** — chosen for cost.
+   `gpt-5.4-mini` is $0.75/$4.50 per MTok against Claude Sonnet 5's $2/$10.
 
-What it costs, accepted: 2–5 minute reviews instead of ~30s, roughly 5–10× the
-tokens (tens of cents rather than a few cents per review), a git dependency, a
-growing `.cache/repos/`, and a security surface that did not exist before — the
-agent reads a repository written by someone else. SPEC.md §12 is largely about
-that, and `settingSources: []` is the load-bearing line.
+What the move cost, recorded so it is a known trade rather than a surprise: the
+Claude Code harness is gone, so the loop, the six tools, the path confinement and
+the allowlist are all code in this repo. The `settingSources` hazard disappeared
+with it — there is no settings loading to misconfigure — but `resolveInside()`
+replaced it as the single guard between a model string and the filesystem, and
+it carries more weight than any one line did before.
 
-The `reviewPullRequest()` seam in SPEC.md §3 stays, so a diff-only Messages API
-implementation remains the fallback if agent reviews prove too slow or costly in
-practice.
+What did not change: the rubric, the finding schema, anchoring, the streaming
+contract, and every consumer above `reviewPullRequest()`.
+
+**Worth measuring, not assumed:** the four-PR evaluation was run on the previous
+engine. Review quality on `gpt-5.4-mini` with hand-built tools is unverified —
+re-running that evaluation is the first thing to do with the new engine, and the
+prior numbers in SPEC.md §11 are the baseline to beat.
 
 ### D2. GitHub token type — **decided: fine-grained, all repositories**
 
@@ -40,22 +46,19 @@ Fallback, if an organization disallows fine-grained tokens: a classic PAT with
 `repo`, SSO-authorized for that org. SPEC.md §5 carries it as troubleshooting,
 not as a supported configuration.
 
-### D6. Model and effort — **decided: claude-sonnet-5 at effort high**
+### D6. Model and effort — **superseded by D1**
 
-Measured on one PR, same rubric, same model:
+Measured on the *previous* engine (Claude Sonnet 5), kept because the shape of
+the trade carries over:
 
 | effort | Time | Cost | Findings |
 |---|---|---|---|
 | high | 278s | $0.49 | 1 — a real gap the PR's own fix missed |
 | medium | 179s | $0.33 | 0 |
 
-Medium is a third cheaper and lost the finding, which is the whole product. A
-cheaper model is very likely worse still, so it is not the default. `REVIEW_MODEL`
-and `REVIEW_EFFORT` make both a per-run choice when a cheap pass is worth more
-than a thorough one.
-
-Worth revisiting with more samples: one PR is one data point, and the gap may be
-narrower on diffs that need less tracing.
+Medium was a third cheaper and lost the finding. `high` remains the default on
+the OpenAI engine for the same reason, though the numbers above have not been
+re-measured there. `REVIEW_MODEL` and `REVIEW_EFFORT` make both a per-run choice.
 
 ### D3. Default triage state
 

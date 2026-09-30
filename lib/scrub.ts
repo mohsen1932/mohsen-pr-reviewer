@@ -12,6 +12,9 @@ const TOKEN_PATTERNS: RegExp[] = [
   /\bgh[pousr]_[A-Za-z0-9]{16,}/g, // classic PAT / OAuth / server / refresh
   /\bgithub_pat_[A-Za-z0-9_]{20,}/g, // fine-grained PAT
   /\bsk-ant-[A-Za-z0-9_-]{16,}/g, // Anthropic API key
+  /\bsk-proj-[A-Za-z0-9_-]{16,}/g, // OpenAI project key
+  /\bsk-svcacct-[A-Za-z0-9_-]{16,}/g, // OpenAI service account key
+  /\bsk-[A-Za-z0-9]{20,}/g, // OpenAI legacy key
 ];
 
 const REDACTED = "[redacted]";

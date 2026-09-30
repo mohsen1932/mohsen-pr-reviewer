@@ -61,8 +61,8 @@ function authEnv(): Record<string, string> {
 export async function git(args: string[], options: GitOptions): Promise<string> {
   // Least privilege: git needs neither credential in its environment. The
   // GitHub token reaches it as a config header only when authenticated, and
-  // ANTHROPIC_API_KEY has no business in a git subprocess at all.
-  const { GITHUB_TOKEN: _gh, ANTHROPIC_API_KEY: _an, ...inherited } = process.env;
+  // OPENAI_API_KEY has no business in a git subprocess at all.
+  const { GITHUB_TOKEN: _gh, OPENAI_API_KEY: _oa, ...inherited } = process.env;
 
   const env = {
     ...inherited,

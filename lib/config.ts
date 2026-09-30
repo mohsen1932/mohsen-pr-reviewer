@@ -8,7 +8,7 @@ import { registerSecret } from "./scrub";
  * render the setup screen that explains what is missing (§14).
  */
 
-const EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const;
+const EFFORTS = ["minimal", "low", "medium", "high", "xhigh"] as const;
 export type Effort = (typeof EFFORTS)[number];
 
 function effortFromEnv(raw: string | undefined): Effort {
@@ -18,8 +18,8 @@ function effortFromEnv(raw: string | undefined): Effort {
 
 export const config = {
   githubToken: process.env.GITHUB_TOKEN?.trim() || undefined,
-  anthropicApiKey: process.env.ANTHROPIC_API_KEY?.trim() || undefined,
-  reviewModel: process.env.REVIEW_MODEL?.trim() || "claude-sonnet-5",
+  openaiApiKey: process.env.OPENAI_API_KEY?.trim() || undefined,
+  reviewModel: process.env.REVIEW_MODEL?.trim() || "gpt-5.4-mini",
   reviewEffort: effortFromEnv(process.env.REVIEW_EFFORT?.trim()),
 } as const;
 
@@ -37,4 +37,4 @@ export function cacheDir(): string {
 }
 
 registerSecret(config.githubToken);
-registerSecret(config.anthropicApiKey);
+registerSecret(config.openaiApiKey);

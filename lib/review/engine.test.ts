@@ -1,33 +1,24 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PullDetail } from "../pulls";
 import type { ReviewContext } from "./engine";
 
-const queryMock = vi.fn();
+const create = vi.fn();
+
+/**
+ * The engine mutates one messages array across turns, so reading it after the
+ * run shows the final state rather than what each call actually sent. Snapshot
+ * at call time instead.
+ */
+const sent: unknown[][] = [];
 const prepareCheckout = vi.fn();
-const interrupt = vi.fn();
+const runTool = vi.fn();
 
-vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
-  query: queryMock,
-  createSdkMcpServer: (c: unknown) => c,
-  tool: (name: string) => ({ name }),
-}));
+vi.mock("./openai", () => ({ openai: () => ({ responses: { create } }) }));
 vi.mock("./checkout", () => ({ prepareCheckout }));
-vi.mock("./tools", async () => {
-  const actual = await vi.importActual<typeof import("./tools")>("./tools");
-  return { createReviewTools: () => ({ name: "review" }), REVIEW_TOOL_NAMES: actual.REVIEW_TOOL_NAMES };
+vi.mock("./agent-tools", async () => {
+  const actual = await vi.importActual<typeof import("./agent-tools")>("./agent-tools");
+  return { ...actual, runTool };
 });
-
-/** Drive the SDK's async iterable from a fixed message list. */
-function sdkYields(messages: unknown[]) {
-  queryMock.mockReturnValue(
-    Object.assign(
-      (async function* () {
-        for (const m of messages) yield m;
-      })(),
-      { interrupt },
-    ),
-  );
-}
 
 const pull = {
   number: 7,
@@ -42,19 +33,45 @@ const pull = {
 
 const ctx = (): ReviewContext => ({ pull, owner: "owner", repo: "repo" });
 
-const init = (commands: string[] = ["code-review"]) => ({
-  type: "system",
-  subtype: "init",
-  slash_commands: commands,
+/** One assistant turn in Responses-API shape; tool calls are optional. */
+const turn = (
+  content: string | null,
+  toolCalls: { name: string; args: unknown }[] = [],
+  usage = { input_tokens: 100, output_tokens: 20, input_tokens_details: { cached_tokens: 0 } },
+) => ({
+  output: [
+    ...(content ? [{ type: "message", role: "assistant", content: [{ type: "output_text", text: content }] }] : []),
+    ...toolCalls.map((c, i) => ({
+      type: "function_call",
+      call_id: `call_${i}`,
+      name: c.name,
+      arguments: JSON.stringify(c.args),
+    })),
+  ],
+  output_text: content ?? "",
+  usage,
 });
-const ok = { type: "result", subtype: "success", num_turns: 3, total_cost_usd: 0.12 };
+
+/** A raw output item, for malformed-call cases. */
+const rawTurn = (items: unknown[], usage: unknown = {}) => ({
+  output: items,
+  output_text: "",
+  usage,
+});
 
 beforeEach(() => {
   vi.resetModules();
-  queryMock.mockReset();
-  interrupt.mockReset();
+  sent.length = 0;
+  create.mockReset();
+  create.mockImplementation((params: { input: unknown[] }) => {
+    sent.push(structuredClone(params.input));
+    return Promise.resolve(turn("done"));
+  });
+  runTool.mockReset().mockResolvedValue({ text: "tool output" });
   prepareCheckout.mockReset().mockResolvedValue("/cache/owner/repo");
 });
+
+afterEach(() => vi.useRealTimers());
 
 async function collect(context = ctx()) {
   const { reviewPullRequest } = await import("./engine");
@@ -62,429 +79,261 @@ async function collect(context = ctx()) {
   for await (const e of reviewPullRequest(context)) events.push(e);
   return events;
 }
+const paramsOf = (call = 0) => create.mock.calls[call][0];
+/** Messages as they were when that call was made. */
+const sentAt = (call: number) => sent[call] as { role: string; content: string }[];
 
-const optionsPassed = () => queryMock.mock.calls.at(-1)![0].options;
-const promptPassed = () => queryMock.mock.calls.at(-1)![0].prompt as string;
+/** Queue responses while still snapshotting the messages of each call. */
+function respond(...responses: unknown[]) {
+  let i = 0;
+  create.mockImplementation((params: { input: unknown[] }) => {
+    sent.push(structuredClone(params.input));
+    const next = responses[Math.min(i, responses.length - 1)];
+    i++;
+    return next instanceof Error ? Promise.reject(next) : Promise.resolve(next);
+  });
+}
 
-describe("security invariants", () => {
-  it("never loads settings from the cloned repository", async () => {
-    sdkYields([init(), ok]);
+describe("request shape", () => {
+  it("sends the rubric as the system message and the PR as the user message", async () => {
+    create.mockResolvedValue(turn("done"));
     await collect();
-    // SPEC.md §12: with 'project' the SDK reads .claude/ from cwd and every
-    // parent — a skill there can run shell commands before Claude sees it.
-    expect(optionsPassed().settingSources).toEqual([]);
+    const items = paramsOf().input;
+    expect(items[0].role).toBe("system");
+    expect(items[0].content).toContain("PRECISION OVER RECALL");
+    expect(items[1].role).toBe("user");
+    expect(items[1].content).toContain("#7");
   });
 
-  it("offers no Bash, write, or network tools", async () => {
-    sdkYields([init(), ok]);
+  it("offers only the read-only tool table", async () => {
+    create.mockResolvedValue(turn("done"));
     await collect();
-    const tools: string[] = optionsPassed().tools;
-    for (const forbidden of ["Bash", "Write", "Edit", "NotebookEdit", "WebFetch", "WebSearch"]) {
-      expect(tools).not.toContain(forbidden);
-    }
-    expect(tools.sort()).toEqual(["Glob", "Grep", "Read", "Skill"]);
+    const names = paramsOf().tools.map((t: { name: string }) => t.name);
+    expect(names).toContain("report_finding");
+    for (const forbidden of ["bash", "write_file", "fetch"]) expect(names).not.toContain(forbidden);
   });
 
-  it("sets no allowedTools, so every call reaches the guard", async () => {
-    sdkYields([init(), ok]);
+  it("labels the diff as untrusted data", async () => {
+    create.mockResolvedValue(turn("done"));
     await collect();
-    // A bare name in allowedTools auto-approves the tool before canUseTool is
-    // consulted — the SDK warns about exactly this. Leaving it unset keeps the
-    // guard live rather than decorative.
-    expect(optionsPassed().allowedTools).toBeUndefined();
-    expect(optionsPassed().canUseTool).toBeTypeOf("function");
+    expect(paramsOf().input[1].content).toContain("<untrusted-diff>");
+    expect(paramsOf().input[1].content).toContain("not instructions");
   });
 
-  it("denies any tool outside the allowlist as defence in depth", async () => {
-    const { denyUnlistedTools } = await import("./engine");
-    const opts = {
-      signal: new AbortController().signal,
-      toolUseID: "t1",
-      requestId: "r1",
-    };
-    await expect(denyUnlistedTools("Bash", {}, opts)).resolves.toMatchObject({ behavior: "deny" });
-    await expect(denyUnlistedTools("Write", {}, opts)).resolves.toMatchObject({ behavior: "deny" });
-    await expect(denyUnlistedTools("Read", {}, opts)).resolves.toMatchObject({ behavior: "allow" });
-    await expect(denyUnlistedTools("mcp__review__git_blame", {}, opts)).resolves.toMatchObject({
-      behavior: "allow",
-    });
-  });
-
-  it("labels the diff as untrusted data in the prompt", async () => {
-    sdkYields([init(), ok]);
+  it("passes the configured model and effort", async () => {
+    create.mockResolvedValue(turn("done"));
     await collect();
-    expect(promptPassed()).toContain("<untrusted-diff>");
-    expect(promptPassed()).toContain("not instructions");
-  });
-
-  it("bounds the run with a turn limit", async () => {
-    sdkYields([init(), ok]);
-    await collect();
-    const { MAX_TURNS } = await import("./engine");
-    expect(optionsPassed().maxTurns).toBe(MAX_TURNS);
+    expect(paramsOf().model).toBe("gpt-5.4-mini");
+    expect(paramsOf().reasoning.effort).toBe("high");
   });
 });
 
-describe("session wiring", () => {
-  it("does not dispatch the bundled code-review skill", async () => {
-    sdkYields([init(), ok]);
-    await collect();
-    // The skill carries its own reporting contract naming a tool this session
-    // does not provide; dispatching it made the model write findings as prose
-    // JSON that never reached report_finding, losing all of them (SPEC.md §7.5).
-    expect(promptPassed()).not.toContain("/code-review");
-  });
-
-  it("tells the model that only report_finding delivers a finding", async () => {
-    sdkYields([init(), ok]);
-    await collect();
-    expect(promptPassed()).toContain("report_finding");
-    expect(promptPassed()).toContain("discarded");
-  });
-
-  it("runs in the checkout directory", async () => {
-    sdkYields([init(), ok]);
-    await collect();
-    expect(optionsPassed().cwd).toBe("/cache/owner/repo");
-  });
-
-  it("reports when the code-review skill is missing rather than failing silently", async () => {
-    sdkYields([init(["compact"]), ok]);
+describe("the agent loop", () => {
+  it("stops when the model returns no tool calls", async () => {
+    create.mockResolvedValue(turn("nothing to report"));
     const events = await collect();
-    expect(events).toContainEqual(
-      expect.objectContaining({ phase: "session-ready", detail: expect.stringContaining("NOT found") }),
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(events.at(-1)).toMatchObject({ type: "done", turns: 1 });
+  });
+
+  it("runs tool calls and feeds the results back", async () => {
+    respond(turn(null, [{ name: "read_file", args: { path: "src/a.ts" } }]), turn("done"));
+    await collect();
+    expect(runTool).toHaveBeenCalledWith("read_file", { path: "src/a.ts" }, expect.anything());
+    expect(sentAt(1).at(-1)).toMatchObject({
+      type: "function_call_output",
+      call_id: "call_0",
+      output: "tool output",
+    });
+  });
+
+  it("handles several tool calls in one turn", async () => {
+    respond(
+      turn(null, [
+        { name: "read_file", args: { path: "a.ts" } },
+        { name: "search", args: { pattern: "x" } },
+      ]),
+      turn("done"),
     );
-    expect(events.at(-1)).toMatchObject({ type: "done", skillUsed: false });
+    await collect();
+    expect(runTool).toHaveBeenCalledTimes(2);
+  });
+
+  it("emits assistant text as it arrives", async () => {
+    respond(turn("looking at a.ts", [{ name: "read_file", args: {} }]), turn("done"));
+    const events = await collect();
+    expect(events).toContainEqual({ type: "message", role: "assistant", text: "looking at a.ts" });
+  });
+
+  it("stops at the turn limit and reports a partial review", async () => {
+    create.mockResolvedValue(turn(null, [{ name: "read_file", args: {} }]));
+    const { MAX_TURNS } = await import("./engine");
+    const events = await collect();
+    expect(create).toHaveBeenCalledTimes(MAX_TURNS);
+    expect(events.at(-1)).toMatchObject({ type: "error", partial: true });
+  });
+});
+
+describe("malformed tool calls", () => {
+  it("returns an error result for unparseable arguments instead of crashing", async () => {
+    respond(
+      rawTurn([{ type: "function_call", call_id: "c1", name: "read_file", arguments: "{not json" }]),
+      turn("done"),
+    );
+    await collect();
+    expect(runTool).not.toHaveBeenCalled();
+    expect((sentAt(1).at(-1) as unknown as { output: string }).output).toContain("not valid JSON");
+  });
+
+  it("refuses a tool name outside the table without dispatching it", async () => {
+    respond(turn(null, [{ name: "bash", args: { cmd: "rm -rf /" } }]), turn("done"));
+    await collect();
+    // The allowlist is the tool table; a hallucinated name never reaches runTool.
+    expect(runTool).not.toHaveBeenCalled();
+    expect((sentAt(1).at(-1) as unknown as { output: string }).output).toContain("No tool named");
+  });
+
+  it("rejects non-object arguments", async () => {
+    respond(
+      rawTurn([{ type: "function_call", call_id: "c1", name: "read_file", arguments: "[1,2]" }]),
+      turn("done"),
+    );
+    await collect();
+    expect((sentAt(1).at(-1) as unknown as { output: string }).output).toContain("must be a JSON object");
   });
 });
 
 describe("findings", () => {
-  it("streams a finding reported mid-run, before the run ends", async () => {
-    const { createReviewTools } = await import("./tools");
-    void createReviewTools;
-    sdkYields([init(), ok]);
-    // The engine hands report_finding an onFinding callback; simulate the tool
-    // firing by invoking the captured callback between messages.
+  it("streams a finding as soon as the tool records it", async () => {
+    const finding = { id: "f1", file: "src/a.ts", line: 2 };
+    runTool.mockImplementation(async (_n, _a, toolCtx) => {
+      toolCtx.onFinding(finding);
+      return { text: "Recorded" };
+    });
+    respond(turn(null, [{ name: "report_finding", args: {} }]), turn("done"));
     const events = await collect();
-    expect(events.at(-1)).toMatchObject({ type: "done", findingCount: 0 });
+    expect(events).toContainEqual({ type: "finding", finding });
+    expect(events.at(-1)).toMatchObject({ type: "done", findingCount: 1 });
+  });
+
+  it("keeps findings when the run hits the turn limit", async () => {
+    runTool.mockImplementation(async (_n, _a, toolCtx) => {
+      toolCtx.onFinding({ id: "f" });
+      return { text: "ok" };
+    });
+    create.mockResolvedValue(turn(null, [{ name: "report_finding", args: {} }]));
+    const events = await collect();
+    expect(events.some((e) => e.type === "finding")).toBe(true);
+    expect(events.at(-1)).toMatchObject({ partial: true });
+  });
+
+  it("keeps findings when the API fails mid-run", async () => {
+    runTool.mockImplementation(async (_n, _a, toolCtx) => {
+      toolCtx.onFinding({ id: "f" });
+      return { text: "ok" };
+    });
+    respond(
+      turn(null, [{ name: "report_finding", args: {} }]),
+      Object.assign(new Error("boom"), { status: 500 }),
+    );
+    const events = await collect();
+    expect(events.some((e) => e.type === "finding")).toBe(true);
+    expect(events.at(-1)).toMatchObject({ type: "error" });
   });
 });
 
-describe("events", () => {
-  it("emits checkout progress before starting the agent", async () => {
-    prepareCheckout.mockImplementation(async ({ onProgress }: { onProgress: (p: string, d?: string) => void }) => {
-      onProgress("cloning", "owner/repo");
-      return "/cache/owner/repo";
-    });
-    sdkYields([init(), ok]);
+describe("usage and cost", () => {
+  it("accumulates tokens across turns and computes cost", async () => {
+    respond(
+      turn(null, [{ name: "read_file", args: {} }], {
+        input_tokens: 1000,
+        output_tokens: 100,
+        input_tokens_details: { cached_tokens: 400 },
+      }),
+      turn("done", [], {
+        input_tokens: 2000,
+        output_tokens: 50,
+        input_tokens_details: { cached_tokens: 1600 },
+      }),
+    );
     const events = await collect();
-    expect(events[0]).toMatchObject({ type: "status", phase: "cloning" });
-  });
-
-  it("surfaces assistant text and tool use", async () => {
-    sdkYields([
-      init(),
-      {
-        type: "assistant",
-        message: {
-          content: [
-            { type: "text", text: "Looking at session.ts" },
-            { type: "tool_use", name: "Read", input: { file_path: "src/a.ts" } },
-          ],
-        },
-      },
-      ok,
-    ]);
-    const events = await collect();
-    expect(events).toContainEqual({ type: "message", role: "assistant", text: "Looking at session.ts" });
-    expect(events).toContainEqual({ type: "tool", name: "Read", summary: "src/a.ts" });
-  });
-
-  it("reports turns and cost on success", async () => {
-    sdkYields([init(), ok]);
-    const events = await collect();
-    expect(events.at(-1)).toMatchObject({ type: "done", turns: 3, costUsd: 0.12, skillUsed: true });
-  });
-
-  it("reports a zero-turn credit failure as an error, not a completed review", async () => {
-    sdkYields([
-      init(),
-      { type: "result", subtype: "success", num_turns: 0, total_cost_usd: 0, result: "Credit balance is too low" },
-    ]);
-    const events = await collect();
-    // The API returns "success" having done nothing; calling that done is a lie.
     expect(events.at(-1)).toMatchObject({
-      type: "error",
-      message: expect.stringContaining("credit balance is too low"),
+      type: "done",
+      usage: { inputTokens: 3000, outputTokens: 150, cacheReadTokens: 2000 },
     });
+    const done = events.at(-1) as { usage: { cacheHitRate: number }; costUsd: number };
+    expect(done.usage.cacheHitRate).toBeCloseTo(2000 / 3000);
+    expect(done.costUsd).toBeGreaterThan(0);
   });
 
-  it("still reports a real zero-turn success as done", async () => {
-    sdkYields([init(), { type: "result", subtype: "success", num_turns: 0, total_cost_usd: 0, result: "No findings." }]);
+  it("reports a null cost for a model with no published price", async () => {
+    process.env.REVIEW_MODEL = "some-unlisted-model";
+    create.mockResolvedValue(turn("done"));
+    const events = await collect();
+    expect(events.at(-1)).toMatchObject({ type: "done", costUsd: null });
+    expect(events).toContainEqual(expect.objectContaining({ phase: "cost-unknown" }));
+    delete process.env.REVIEW_MODEL;
+  });
+
+  it("tolerates a response with no usage block", async () => {
+    create.mockResolvedValue({ output: [], output_text: "done" });
+    const events = await collect();
+    expect(events.at(-1)).toMatchObject({ type: "done", usage: { inputTokens: 0 } });
+  });
+});
+
+describe("failures", () => {
+  it("ends with an error when the checkout fails, without calling the API", async () => {
+    prepareCheckout.mockRejectedValue(new Error("git clone failed"));
+    const events = await collect();
+    expect(events).toEqual([{ type: "error", message: "git clone failed" }]);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("names a rejected key", async () => {
+    create.mockRejectedValue(Object.assign(new Error("Incorrect API key"), { status: 401 }));
+    const events = await collect();
+    expect(events.at(-1)).toMatchObject({ message: expect.stringContaining("OPENAI_API_KEY") });
+  });
+
+  it("distinguishes an exhausted quota from a rate limit", async () => {
+    create.mockRejectedValue(
+      Object.assign(new Error("You exceeded your current quota"), { status: 429 }),
+    );
+    const events = await collect();
+    expect(events.at(-1)).toMatchObject({ message: expect.stringContaining("quota exhausted") });
+  });
+
+  it("names an unavailable model", async () => {
+    create.mockRejectedValue(
+      Object.assign(new Error("The model does not exist"), { status: 404 }),
+    );
+    const events = await collect();
+    expect(events.at(-1)).toMatchObject({ message: expect.stringContaining("REVIEW_MODEL") });
+  });
+
+  it("scrubs a credential out of an API error", async () => {
+    create.mockRejectedValue(new Error("failed with sk-proj-abcdefghijklmnopqrst"));
+    const events = await collect();
+    expect(JSON.stringify(events.at(-1))).not.toContain("sk-proj-");
+  });
+
+  it("ends cleanly when the model returns no output items", async () => {
+    create.mockResolvedValue({ output: [], output_text: "", usage: {} });
     const events = await collect();
     expect(events.at(-1)).toMatchObject({ type: "done" });
-  });
-
-  it("does not misread a credit mention in a real review as a failure", async () => {
-    sdkYields([
-      init(),
-      { type: "result", subtype: "success", num_turns: 12, total_cost_usd: 0.4, result: "Credit balance is too low is a bad error string in auth.ts" },
-    ]);
-    const events = await collect();
-    expect(events.at(-1)).toMatchObject({ type: "done", turns: 12 });
-  });
-
-  it("treats a turn-limit stop as partial, not a hard failure", async () => {
-    sdkYields([init(), { type: "result", subtype: "error_max_turns", num_turns: 60 }]);
-    const events = await collect();
-    expect(events.at(-1)).toMatchObject({ type: "error", partial: true });
-  });
-
-  it("ends with an error when the checkout fails, without calling the agent", async () => {
-    prepareCheckout.mockRejectedValue(new Error("git clone failed: repository not found"));
-    const events = await collect();
-    expect(events).toEqual([{ type: "error", message: "git clone failed: repository not found" }]);
-    expect(queryMock).not.toHaveBeenCalled();
-  });
-});
-
-describe("error explanation", () => {
-  it("names a zero credit balance, which otherwise reads as a bug", async () => {
-    sdkYields([init()]);
-    queryMock.mockReturnValue(
-      Object.assign(
-        (async function* () {
-          yield init();
-          throw new Error("API Error: Your credit balance is too low to access the API");
-        })(),
-        { interrupt },
-      ),
-    );
-    const events = await collect();
-    expect(events.at(-1)).toMatchObject({
-      type: "error",
-      message: expect.stringContaining("console.anthropic.com"),
-    });
-  });
-
-  it("names a rate limit", async () => {
-    queryMock.mockReturnValue(
-      Object.assign(
-        (async function* () {
-          yield init();
-          throw new Error("429 rate_limit_error");
-        })(),
-        { interrupt },
-      ),
-    );
-    const events = await collect();
-    expect(events.at(-1)).toMatchObject({ message: expect.stringContaining("rate limit") });
-  });
-
-  it("scrubs a credential out of an agent error", async () => {
-    queryMock.mockReturnValue(
-      Object.assign(
-        (async function* () {
-          yield init();
-          throw new Error("failed with github_pat_11ABCDE0123456789abcdefgh");
-        })(),
-        { interrupt },
-      ),
-    );
-    const events = await collect();
-    expect(JSON.stringify(events.at(-1))).not.toContain("github_pat_");
   });
 });
 
 describe("cancellation", () => {
-  it("interrupts the run when the caller aborts", async () => {
+  it("stops the loop when the caller aborts", async () => {
     const controller = new AbortController();
-    queryMock.mockReturnValue(
-      Object.assign(
-        (async function* () {
-          yield init();
-          controller.abort();
-          await new Promise((r) => setTimeout(r, 5));
-          yield ok;
-        })(),
-        { interrupt },
-      ),
-    );
-    await collect({ ...ctx(), signal: controller.signal });
-    expect(interrupt).toHaveBeenCalled();
-  });
-});
-
-describe("finding streaming", () => {
-  /** Capture the onFinding callback the engine passes to the tools. */
-  let emit: ((f: unknown) => void) | undefined;
-
-  beforeEach(() => {
-    emit = undefined;
-    vi.doMock("./tools", async () => {
-      const actual = await vi.importActual<typeof import("./tools")>("./tools");
-      return {
-        REVIEW_TOOL_NAMES: actual.REVIEW_TOOL_NAMES,
-        createReviewTools: (c: { onFinding: (f: unknown) => void }) => {
-          emit = c.onFinding;
-          return { name: "review" };
-        },
-      };
+    create.mockImplementation(async () => {
+      controller.abort();
+      return turn(null, [{ name: "read_file", args: {} }]);
     });
-  });
-
-  const finding = (over = {}) => ({
-    id: "f1",
-    file: "src/a.ts",
-    line: 2,
-    disposition: "blocking",
-    category: "correctness",
-    title: "Bug",
-    body: "b",
-    confidence: "confirmed",
-    status: "pending",
-    edited: false,
-    lineValid: true,
-    snapped: false,
-    origin: "agent",
-    ...over,
-  });
-
-  it("emits findings as they are reported, not batched at the end", async () => {
-    queryMock.mockReturnValue(
-      Object.assign(
-        (async function* () {
-          yield init();
-          emit!(finding());
-          yield { type: "assistant", message: { content: [{ type: "text", text: "found one" }] } };
-          emit!(finding({ id: "f2" }));
-          yield ok;
-        })(),
-        { interrupt },
-      ),
-    );
-    const events = await collect();
-    const kinds = events.map((e) => e.type);
-    // A finding must appear before the assistant text that followed it.
-    expect(kinds.indexOf("finding")).toBeLessThan(kinds.indexOf("message"));
-    expect(events.filter((e) => e.type === "finding")).toHaveLength(2);
-  });
-
-  it("counts findings on the done event", async () => {
-    queryMock.mockReturnValue(
-      Object.assign(
-        (async function* () {
-          yield init();
-          emit!(finding());
-          yield ok;
-        })(),
-        { interrupt },
-      ),
-    );
-    const events = await collect();
-    expect(events.at(-1)).toMatchObject({ type: "done", findingCount: 1 });
-  });
-
-  it("drains findings reported on the final turn", async () => {
-    queryMock.mockReturnValue(
-      Object.assign(
-        (async function* () {
-          yield init();
-          yield ok;
-          emit!(finding({ id: "late" }));
-        })(),
-        { interrupt },
-      ),
-    );
-    const events = await collect();
-    // Reported after the result message — it must still reach the caller.
-    expect(events.some((e) => e.type === "finding")).toBe(true);
-  });
-
-  it("keeps findings when the run hits the turn limit", async () => {
-    queryMock.mockReturnValue(
-      Object.assign(
-        (async function* () {
-          yield init();
-          emit!(finding());
-          yield { type: "result", subtype: "error_max_turns", num_turns: 60 };
-        })(),
-        { interrupt },
-      ),
-    );
-    const events = await collect();
-    expect(events.some((e) => e.type === "finding")).toBe(true);
+    const events = await collect({ ...ctx(), signal: controller.signal });
+    expect(create).toHaveBeenCalledTimes(1);
     expect(events.at(-1)).toMatchObject({ type: "error", partial: true });
-  });
-});
-
-describe("usage accounting", () => {
-  it("sums token usage across models and computes the cache hit rate", async () => {
-    const { summarizeUsage } = await import("./engine");
-    const usage = summarizeUsage({
-      "claude-sonnet-5": {
-        inputTokens: 1000,
-        outputTokens: 500,
-        cacheReadInputTokens: 9000,
-        cacheCreationInputTokens: 0,
-      },
-    });
-    expect(usage).toMatchObject({
-      inputTokens: 1000,
-      outputTokens: 500,
-      cacheReadTokens: 9000,
-    });
-    // 9000 of 10000 billed input tokens came from cache.
-    expect(usage.cacheHitRate).toBeCloseTo(0.9);
-  });
-
-  it("includes subagent and internal model calls", async () => {
-    const { summarizeUsage } = await import("./engine");
-    const usage = summarizeUsage({
-      "claude-sonnet-5": { inputTokens: 100, outputTokens: 10, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 },
-      "claude-haiku-4-5": { inputTokens: 50, outputTokens: 5, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 },
-    });
-    expect(usage.inputTokens).toBe(150);
-    expect(usage.outputTokens).toBe(15);
-  });
-
-  it("reports a zero hit rate rather than dividing by zero", async () => {
-    const { summarizeUsage } = await import("./engine");
-    expect(summarizeUsage({}).cacheHitRate).toBe(0);
-    expect(summarizeUsage(undefined).cacheHitRate).toBe(0);
-  });
-
-  it("counts cache writes as billed input, since they are", async () => {
-    const { summarizeUsage } = await import("./engine");
-    const usage = summarizeUsage({
-      m: { inputTokens: 0, outputTokens: 0, cacheReadInputTokens: 0, cacheCreationInputTokens: 1000 },
-    });
-    expect(usage.cacheWriteTokens).toBe(1000);
-    expect(usage.cacheHitRate).toBe(0);
-  });
-
-  it("reports usage on the done event", async () => {
-    sdkYields([
-      init(),
-      {
-        type: "result",
-        subtype: "success",
-        num_turns: 3,
-        total_cost_usd: 0.1,
-        modelUsage: {
-          "claude-sonnet-5": {
-            inputTokens: 2000,
-            outputTokens: 800,
-            cacheReadInputTokens: 18000,
-            cacheCreationInputTokens: 0,
-          },
-        },
-      },
-    ]);
-    const events = await collect();
-    expect(events.at(-1)).toMatchObject({
-      type: "done",
-      usage: { cacheReadTokens: 18000 },
-    });
   });
 });

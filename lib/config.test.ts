@@ -3,7 +3,7 @@ import path from "node:path";
 
 const ENV_KEYS = [
   "GITHUB_TOKEN",
-  "ANTHROPIC_API_KEY",
+  "OPENAI_API_KEY",
   "REVIEW_MODEL",
   "REVIEW_EFFORT",
   "CACHE_DIR",
@@ -32,16 +32,16 @@ async function loadConfig() {
 describe("credentials", () => {
   it("reads both credentials from env", async () => {
     process.env.GITHUB_TOKEN = "github_pat_11ABCDE0123456789abcdefgh";
-    process.env.ANTHROPIC_API_KEY = "sk-ant-api03-abcdefghijklmnop";
+    process.env.OPENAI_API_KEY = "sk-proj-abcdefghijklmnopqrst";
     const { config } = await loadConfig();
     expect(config.githubToken).toBe("github_pat_11ABCDE0123456789abcdefgh");
-    expect(config.anthropicApiKey).toBe("sk-ant-api03-abcdefghijklmnop");
+    expect(config.openaiApiKey).toBe("sk-proj-abcdefghijklmnopqrst");
   });
 
   it("is undefined rather than throwing when unset", async () => {
     const { config } = await loadConfig();
     expect(config.githubToken).toBeUndefined();
-    expect(config.anthropicApiKey).toBeUndefined();
+    expect(config.openaiApiKey).toBeUndefined();
   });
 
   it("treats whitespace-only as unset", async () => {
@@ -58,7 +58,7 @@ describe("credentials", () => {
 
   it("registers both credentials for scrubbing", async () => {
     process.env.GITHUB_TOKEN = "github_pat_11ABCDE0123456789abcdefgh";
-    process.env.ANTHROPIC_API_KEY = "sk-ant-api03-abcdefghijklmnop";
+    process.env.OPENAI_API_KEY = "sk-proj-abcdefghijklmnopqrst";
     await loadConfig();
     const { scrub } = await import("./scrub");
     expect(scrub("github_pat_11ABCDE0123456789abcdefgh")).toBe("[redacted]");
@@ -66,15 +66,15 @@ describe("credentials", () => {
 });
 
 describe("reviewModel", () => {
-  it("defaults to claude-sonnet-5", async () => {
+  it("defaults to gpt-5.4-mini", async () => {
     const { config } = await loadConfig();
-    expect(config.reviewModel).toBe("claude-sonnet-5");
+    expect(config.reviewModel).toBe("gpt-5.4-mini");
   });
 
   it("honours an override", async () => {
-    process.env.REVIEW_MODEL = "claude-opus-5";
+    process.env.REVIEW_MODEL = "gpt-5.4";
     const { config } = await loadConfig();
-    expect(config.reviewModel).toBe("claude-opus-5");
+    expect(config.reviewModel).toBe("gpt-5.4");
   });
 });
 
@@ -84,7 +84,7 @@ describe("reviewEffort", () => {
     expect(config.reviewEffort).toBe("high");
   });
 
-  it.each(["low", "medium", "high", "xhigh", "max"])("accepts %s", async (effort) => {
+  it.each(["minimal", "low", "medium", "high", "xhigh"])("accepts %s", async (effort) => {
     process.env.REVIEW_EFFORT = effort;
     const { config } = await loadConfig();
     expect(config.reviewEffort).toBe(effort);
