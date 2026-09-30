@@ -5,9 +5,11 @@ no database. Reviews run an agent loop over the OpenAI API against a real checko
 PR's repo; findings are triaged by a human and posted back to GitHub as one
 review with inline comments.
 
-**Status: M7 complete** — the whole flow works end to end, verified against a
-real pull request. 631 tests at 95.4% coverage. Only TASKS.md M8 (README) is
-left.
+**Status: all eight milestones done** — browse, review, triage, post. 631 tests
+at 95.4% coverage, verified end to end against a real pull request. One task
+open: a screenshot for the README (TASKS.md T8.5), which needs a browser.
+
+Remaining work lives in BACKLOG.md, not TASKS.md.
 
 ## Where things are decided
 

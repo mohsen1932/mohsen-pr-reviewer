@@ -240,14 +240,17 @@ awaiting a decision.
 
 **Done when:** someone else could set this up on their machine from the README.
 
-- [ ] **T8.1** Setup: fine-grained PAT with the exact permissions, spend limit,
+- [x] **T8.1** Setup: fine-grained PAT with the exact permissions, spend limit,
       `git` requirement (§5, §14)
-- [ ] **T8.2** ⚠️ Document that it is **local-only and unauthenticated** — never
+- [x] **T8.2** ⚠️ Document that it is **local-only and unauthenticated** — never
       expose the port (§12, §14)
-- [ ] **T8.3** ⚠️ Document that private source is sent to the OpenAI API and
+- [x] **T8.3** ⚠️ Document that private source is sent to the OpenAI API and
       cached in plaintext under `.cache/` (§12)
-- [ ] **T8.4** Cost expectations — 2–5 min and tens of cents per review (§11)
-- [ ] **T8.5** Screenshot of the review screen
+- [x] **T8.4** Cost expectations — 2–5 min and tens of cents per review (§11)
+- [ ] **T8.5** ⛔ NEEDS YOU — screenshot of the review screen. No browser tooling
+      is available in this session. Run a review, capture the findings panel, save
+      it as `docs/review-screen.png`, and replace the ASCII placeholder in
+      README.md (marked with a TODO comment). A text rendering stands in meanwhile.
 
 ---
 
