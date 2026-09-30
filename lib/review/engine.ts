@@ -72,8 +72,12 @@ function renderPrompt(ctx: ReviewContext): string {
     })
     .join("\n\n");
 
+  // Stated as a rule, not a footnote: on the first real run the agent spent its
+  // whole turn budget searching for an excluded lockfile.
   const omitted = pull.excluded.length
-    ? `\n\nNot included: ${pull.excluded.map((e) => `${e.filename} (${e.reason})`).join(", ")}`
+    ? `\n\nDeliberately excluded from this review, and unavailable to your tools — ` +
+      `do not search for them:\n` +
+      pull.excluded.map((e) => `- ${e.filename} (${e.reason})`).join("\n")
     : "";
 
   return `Review this pull request.
@@ -131,6 +135,7 @@ export async function* reviewPullRequest(
   const toolContext: ToolContext = {
     cwd,
     files: ctx.pull.files,
+    excluded: ctx.pull.excluded.map((x) => ({ filename: x.filename, reason: x.reason })),
     onFinding: (finding) => pending.push(finding),
   };
 

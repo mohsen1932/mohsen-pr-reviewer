@@ -23,6 +23,8 @@ const MAX_FILE_BYTES = 256 * 1024;
 export type ToolContext = {
   cwd: string;
   files: AnchorTarget[];
+  /** Paths deliberately left out of the review (§11), with the reason. */
+  excluded?: { filename: string; reason: string }[];
   onFinding: (finding: Finding) => void;
 };
 
@@ -168,7 +170,23 @@ export async function runTool(
   }
 }
 
+/**
+ * An excluded file is not merely absent — the agent is told it exists and was
+ * deliberately skipped. Without this it spends turns hunting for a lockfile it
+ * can never review, which is exactly what happened on the first real run.
+ */
+function excludedNotice(ctx: ToolContext, path: string): ToolResult | undefined {
+  const match = ctx.excluded?.find((e) => e.filename === path || path.endsWith(`/${e.filename}`));
+  if (!match) return undefined;
+  return fail(
+    `"${match.filename}" is excluded from this review (${match.reason}) and is not available. ` +
+      "Do not look for it again — review the files in the diff instead.",
+  );
+}
+
 async function readFile(args: Args, ctx: ToolContext): Promise<ToolResult> {
+  const excluded = excludedNotice(ctx, str(args, "path"));
+  if (excluded) return excluded;
   const absolute = resolveInside(ctx.cwd, str(args, "path"));
   const stat = await fs.stat(absolute);
   if (!stat.isFile()) return fail(`"${str(args, "path")}" is not a file.`);
@@ -193,6 +211,8 @@ async function readFile(args: Args, ctx: ToolContext): Promise<ToolResult> {
 async function search(args: Args, ctx: ToolContext): Promise<ToolResult> {
   const pattern = str(args, "pattern");
   if (!pattern) return fail("pattern is required.");
+  const excluded = excludedNotice(ctx, pattern);
+  if (excluded) return excluded;
   const scope = str(args, "path");
   // git grep stays inside the work tree and takes a fixed argument list, so
   // there is no shell and no way to reach outside the checkout.
