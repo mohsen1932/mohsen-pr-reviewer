@@ -417,3 +417,74 @@ describe("finding streaming", () => {
     expect(events.at(-1)).toMatchObject({ type: "error", partial: true });
   });
 });
+
+describe("usage accounting", () => {
+  it("sums token usage across models and computes the cache hit rate", async () => {
+    const { summarizeUsage } = await import("./engine");
+    const usage = summarizeUsage({
+      "claude-sonnet-5": {
+        inputTokens: 1000,
+        outputTokens: 500,
+        cacheReadInputTokens: 9000,
+        cacheCreationInputTokens: 0,
+      },
+    });
+    expect(usage).toMatchObject({
+      inputTokens: 1000,
+      outputTokens: 500,
+      cacheReadTokens: 9000,
+    });
+    // 9000 of 10000 billed input tokens came from cache.
+    expect(usage.cacheHitRate).toBeCloseTo(0.9);
+  });
+
+  it("includes subagent and internal model calls", async () => {
+    const { summarizeUsage } = await import("./engine");
+    const usage = summarizeUsage({
+      "claude-sonnet-5": { inputTokens: 100, outputTokens: 10, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 },
+      "claude-haiku-4-5": { inputTokens: 50, outputTokens: 5, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 },
+    });
+    expect(usage.inputTokens).toBe(150);
+    expect(usage.outputTokens).toBe(15);
+  });
+
+  it("reports a zero hit rate rather than dividing by zero", async () => {
+    const { summarizeUsage } = await import("./engine");
+    expect(summarizeUsage({}).cacheHitRate).toBe(0);
+    expect(summarizeUsage(undefined).cacheHitRate).toBe(0);
+  });
+
+  it("counts cache writes as billed input, since they are", async () => {
+    const { summarizeUsage } = await import("./engine");
+    const usage = summarizeUsage({
+      m: { inputTokens: 0, outputTokens: 0, cacheReadInputTokens: 0, cacheCreationInputTokens: 1000 },
+    });
+    expect(usage.cacheWriteTokens).toBe(1000);
+    expect(usage.cacheHitRate).toBe(0);
+  });
+
+  it("reports usage on the done event", async () => {
+    sdkYields([
+      init(),
+      {
+        type: "result",
+        subtype: "success",
+        num_turns: 3,
+        total_cost_usd: 0.1,
+        modelUsage: {
+          "claude-sonnet-5": {
+            inputTokens: 2000,
+            outputTokens: 800,
+            cacheReadInputTokens: 18000,
+            cacheCreationInputTokens: 0,
+          },
+        },
+      },
+    ]);
+    const events = await collect();
+    expect(events.at(-1)).toMatchObject({
+      type: "done",
+      usage: { cacheReadTokens: 18000 },
+    });
+  });
+});

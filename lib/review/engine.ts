@@ -26,8 +26,23 @@ export type ReviewEvent =
       durationMs: number;
       skillUsed: boolean;
       findingCount: number;
+      usage: ReviewUsage;
     }
   | { type: "error"; message: string; partial?: boolean };
+
+/**
+ * Where the money went. Cache reads bill at a fraction of fresh input, so the
+ * read/write split is the first thing to look at when a review costs more than
+ * expected (SPEC.md §11).
+ */
+export type ReviewUsage = {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  /** Fraction of input served from cache, 0-1. Low means the prefix is churning. */
+  cacheHitRate: number;
+};
 
 export type ReviewContext = {
   pull: PullDetail;
@@ -220,6 +235,7 @@ export async function* reviewPullRequest(
             durationMs: Date.now() - started,
             skillUsed,
             findingCount,
+            usage: summarizeUsage(message.modelUsage),
           };
         } else {
           yield {
@@ -240,6 +256,30 @@ export async function* reviewPullRequest(
     clearTimeout(timer);
     ctx.signal?.removeEventListener("abort", onAbort);
   }
+}
+
+type ModelUsageLike = {
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadInputTokens?: number;
+  cacheCreationInputTokens?: number;
+};
+
+export function summarizeUsage(
+  modelUsage: Record<string, ModelUsageLike> | undefined,
+): ReviewUsage {
+  const total = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
+  for (const usage of Object.values(modelUsage ?? {})) {
+    total.inputTokens += usage.inputTokens ?? 0;
+    total.outputTokens += usage.outputTokens ?? 0;
+    total.cacheReadTokens += usage.cacheReadInputTokens ?? 0;
+    total.cacheWriteTokens += usage.cacheCreationInputTokens ?? 0;
+  }
+  const billedInput = total.inputTokens + total.cacheReadTokens + total.cacheWriteTokens;
+  return {
+    ...total,
+    cacheHitRate: billedInput === 0 ? 0 : total.cacheReadTokens / billedInput,
+  };
 }
 
 function summarizeToolUse(input: unknown): string {

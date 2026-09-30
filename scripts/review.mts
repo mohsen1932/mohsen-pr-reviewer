@@ -81,10 +81,20 @@ for await (const event of reviewPullRequest({
       console.log();
       console.log(
         bold(
-          `done · ${event.findingCount} findings · ${event.turns} turns · $${event.costUsd.toFixed(4)} · ${(event.durationMs / 1000).toFixed(1)}s` +
-            (event.skillUsed ? "" : " · WARNING: code-review skill not found"),
+          `done · ${event.findingCount} findings · ${event.turns} turns · $${event.costUsd.toFixed(4)} · ${(event.durationMs / 1000).toFixed(1)}s`,
         ),
       );
+      {
+        const u = event.usage;
+        const k = (n: number) => `${(n / 1000).toFixed(1)}k`;
+        console.log(
+          dim(
+            `       tokens: ${k(u.inputTokens)} fresh in · ${k(u.cacheReadTokens)} cached in · ` +
+              `${k(u.cacheWriteTokens)} cache writes · ${k(u.outputTokens)} out · ` +
+              `cache hit ${(u.cacheHitRate * 100).toFixed(0)}%`,
+          ),
+        );
+      }
       break;
     case "error":
       console.error(`\n\x1b[31m${event.partial ? "partial" : "error"}:\x1b[0m ${event.message}`);
