@@ -5,7 +5,7 @@ no database. Reviews run the Claude Code harness (Agent SDK) against a real
 checkout of the PR's repo; findings are triaged by a human and posted back to
 GitHub as one review with inline comments.
 
-**Status: design only. No code exists yet.** Start at TASKS.md M1.
+**Status: M1 complete** (scaffold, config, startup validation). Next: TASKS.md M2.
 
 ## Where things are decided
 
@@ -54,8 +54,14 @@ stop and ask.
   API. A diff-only Messages API implementation is the documented fallback
   (BACKLOG D1), not the current design.
 - Default model is **`claude-sonnet-5`**, overridable via `REVIEW_MODEL`.
-- **Node 20+.** The machine has 18.20.3, which Next 15 accepts and Next 16 does
-  not.
+- **Node 22.12.0**, pinned in `.nvmrc`. The system Node is 18.20.3 and will not
+  run Next 16 — `nvm use` before anything, or npm scripts fail confusingly.
+- **Next 16**, not 15 as originally spec'd: Next 15 bundles a postcss with a
+  high-severity advisory fixable only by upgrading. SPEC.md §4 records the
+  change.
+- `npm run dev` and `npm run start` pass `--hostname 127.0.0.1` deliberately.
+  Next otherwise binds 0.0.0.0 and advertises a LAN URL, which contradicts
+  invariant 4 above.
 - `git` must be on `PATH` at **≥ 2.19** — the clone uses `--filter=blob:none`.
   A `--depth` shallow clone would break `git blame`, which is half the reason for
   cloning at all.
@@ -74,3 +80,13 @@ stop and ask.
   `category`. They are independent; don't collapse them into a severity scale.
 - `.env` and `.cache/` are gitignored and must stay that way. `.cache/repos/`
   holds private source in plaintext.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

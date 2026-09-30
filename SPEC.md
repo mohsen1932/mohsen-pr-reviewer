@@ -151,7 +151,7 @@ is the only part of the app that would change.
 
 | Concern | Choice | Note |
 |---|---|---|
-| Framework | Next.js 15, App Router, TypeScript | Node runtime on all routes (not Edge) |
+| Framework | Next.js 16, App Router, TypeScript | Node runtime on all routes (not Edge) |
 | Auth | None — credentials from `.env` (§5) | Single-user local app; no session layer |
 | GitHub client | `@octokit/rest` | Typed, handles pagination and rate-limit headers |
 | LLM | `@anthropic-ai/claude-agent-sdk` | Claude Code harness; `claude-sonnet-5` by default |
@@ -882,8 +882,8 @@ npm run dev              # http://localhost:3000
 
 Requirements:
 
-- **Node 20+** (this machine has 18.20.3, which Next 15 accepts but Next 16 does
-  not).
+- **Node 20+**, pinned to 22.12.0 in `.nvmrc`. Next 16 requires it; the system
+  Node (18.20.3) is too old, so use `nvm use`.
 - **`git` on `PATH`** — the Agent SDK reviews a real checkout (§7.2).
 - **Disk space** for `.cache/repos/`. Partial clones keep this modest, but it
   grows with every repo reviewed; the UI exposes a "clear cache" action.
@@ -903,7 +903,7 @@ rather than failing on the first API call:
 | `GITHUB_TOKEN` under-scoped | Detected on first use; the failing operation names the missing permission |
 | Token sees no private repos | Hint to check the token grants access to all repositories (§5) |
 | `ANTHROPIC_API_KEY` missing | Browsing works; "Review this PR" is disabled with a reason |
-| `ANTHROPIC_API_KEY` invalid | A one-turn probe query fails → "key rejected" |
+| `ANTHROPIC_API_KEY` invalid | `GET /v1/models` returns 401/403 → "key rejected". A free, zero-token probe; inference goes through the Agent SDK |
 | `git` missing from `PATH` | Setup screen: install git; reviews cannot run without it |
 
 ### Not for deployment

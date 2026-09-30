@@ -20,24 +20,26 @@ runnable: finish one and you have something you can use.
 
 ## M1 — Scaffold + credentials
 
+**✅ Complete.** Next 16.3.7 / React 19 / Tailwind 4, Node 22.12.0 (`.nvmrc`).
+
 **Done when:** `.env` is read, startup validation reports precisely what is
 missing, and `/repos` shows your GitHub login.
 
-- [ ] **T1.1** `create-next-app` — Next.js 15, App Router, TypeScript, Tailwind.
+- [x] **T1.1** `create-next-app` — Next.js 15, App Router, TypeScript, Tailwind.
       Node 20+ (§4)
-- [ ] **T1.2** `.gitignore`: `.env`, `.cache/`, `node_modules` ⚠️ (§12, §14)
-- [ ] **T1.3** `.env.example` with all five keys and empty values (§14)
-- [ ] **T1.4** `lib/config.ts` — read and type `GITHUB_TOKEN`, `ANTHROPIC_API_KEY`,
+- [x] **T1.2** `.gitignore`: `.env`, `.cache/`, `node_modules` ⚠️ (§12, §14)
+- [x] **T1.3** `.env.example` with all five keys and empty values (§14)
+- [x] **T1.4** `lib/config.ts` — read and type `GITHUB_TOKEN`, `ANTHROPIC_API_KEY`,
       `REVIEW_MODEL`, `REVIEW_EFFORT`, `CACHE_DIR` with defaults (§14)
-- [ ] **T1.5** `lib/github.ts` — module-level Octokit from `GITHUB_TOKEN` (§3, §6)
-- [ ] **T1.6** `lib/startup.ts` — validate on boot: `git` on `PATH`, `GET /user`
+- [x] **T1.5** `lib/github.ts` — module-level Octokit from `GITHUB_TOKEN` (§3, §6)
+- [x] **T1.6** `lib/startup.ts` — validate on boot: `git` on `PATH`, `GET /user`
       for the token, one-turn probe for the Anthropic key (§14)
-- [ ] **T1.7** `SetupNotice.tsx` — one message per missing or rejected
+- [x] **T1.7** `SetupNotice.tsx` — one message per missing or rejected
       credential, plus missing `git` (§14)
-- [ ] **T1.8** `app/page.tsx` — redirect to `/repos`, or render setup notice
-- [ ] **T1.9** ⚠️ Credential scrubbing helper — no error path may echo a token or
+- [x] **T1.8** `app/page.tsx` — redirect to `/repos`, or render setup notice
+- [x] **T1.9** ⚠️ Credential scrubbing helper — no error path may echo a token or
       key; an Anthropic 401 renders as "invalid key" (§12)
-- [ ] **T1.10** Bind check: confirm dev server is localhost-only; document it ⚠️ (§12)
+- [x] **T1.10** Bind check: confirm dev server is localhost-only; document it ⚠️ (§12)
 
 ---
 
