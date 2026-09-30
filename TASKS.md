@@ -189,26 +189,31 @@ refresh.
 
 ## M6 — Post to GitHub
 
+**Code complete; not yet posted to a real PR.** 47 tests cover rendering, the
+posting path and the route. The one thing tests cannot prove is that GitHub
+accepts the payload — that needs a live post, which is outward-facing and
+awaiting a decision.
+
 **Done when:** one review with inline comments lands on a real PR.
 
-- [ ] **T6.1** `lib/findings/render.ts` — Conventional Comments format per
+- [x] **T6.1** `lib/findings/render.ts` — Conventional Comments format per
       disposition (§6)
-- [ ] **T6.2** `POST /api/review/post` (§9)
-- [ ] **T6.3** ⚠️ Server-side re-validation — anchors, file-in-PR, classification
+- [x] **T6.2** `POST /api/review/post` (§9)
+- [x] **T6.3** ⚠️ Server-side re-validation — anchors, file-in-PR, classification
       well-formed (§8.5, §9, §12)
-- [ ] **T6.4** Build `comments[]` and call `createReview` **once** with
+- [x] **T6.4** Build `comments[]` and call `createReview` **once** with
       `commit_id: headSha` (§6)
-- [ ] **T6.5** Review body — counts by disposition + a "General" section for
+- [x] **T6.5** Review body — counts by disposition + a "General" section for
       `lineValid: false` findings (§6, §8.5)
-- [ ] **T6.6** Event selection — `COMMENT` default; offer `REQUEST_CHANGES` when
+- [x] **T6.6** Event selection — `COMMENT` default; offer `REQUEST_CHANGES` when
       approved findings include `blocking` (§6)
-- [ ] **T6.7** Hide `REQUEST_CHANGES` when the PR author is the authenticated
+- [x] **T6.7** Hide `REQUEST_CHANGES` when the PR author is the authenticated
       user; handle the 422 with one-click retry as `COMMENT` (§6)
-- [ ] **T6.8** Confirm dialog — comment count broken down by disposition (§10)
-- [ ] **T6.9** Head-moved handling — `commit_id` mismatch → offer re-review (§11)
-- [ ] **T6.10** Post-success lock + link to the review on GitHub (§10)
+- [x] **T6.8** Confirm dialog — comment count broken down by disposition (§10)
+- [x] **T6.9** Head-moved handling — `commit_id` mismatch → offer re-review (§11)
+- [x] **T6.10** Post-success lock + link to the review on GitHub (§10)
 
-- [ ] **T6.11** Tests: Conventional Comments rendering per disposition, review body assembly, own-PR event selection (§16)
+- [x] **T6.11** Tests: Conventional Comments rendering per disposition, review body assembly, own-PR event selection (§16)
 ---
 
 ## M7 — Polish

@@ -1,12 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useReducer, useRef } from "react";
-import {
-  initialReviewState,
-  reviewReducer,
-  type BulkScope,
-  type ReviewState,
-} from "@/lib/review/reducer";
+import { reviewReducer, type BulkScope } from "@/lib/review/reducer";
 import { applyEdit, createUserFinding, type EditableFields } from "@/lib/findings/edit";
 import type { AnchorTarget } from "@/lib/review/anchor";
 import type { FindingStatus } from "@/lib/findings/schema";

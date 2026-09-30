@@ -4,9 +4,11 @@ import { useMemo, useState } from "react";
 import { countByDisposition, filterFindings, groupByFile } from "@/lib/findings/group";
 import { dismissedFindings, visibleFindings } from "@/lib/review/reducer";
 import type { AnchorTarget } from "@/lib/review/anchor";
+import { useCallback } from "react";
 import AddFinding from "./AddFinding";
 import DismissedDrawer from "./DismissedDrawer";
 import FileGroup from "./FileGroup";
+import PostBar, { type PostFailure, type PostOutcome } from "./PostBar";
 import UndoToast from "./UndoToast";
 import { useReviewStream } from "./useReviewStream";
 import { Notice } from "./ui";
@@ -18,6 +20,8 @@ type Props = {
   headSha: string;
   /** Changed files with parsed patches, for anchoring edited and added findings. */
   files: AnchorTarget[];
+  /** GitHub rejects REQUEST_CHANGES on your own PR (§6). */
+  authoredByViewer: boolean;
   /** Why reviewing is unavailable, if it is. */
   blockedReason?: string;
 };
@@ -28,11 +32,15 @@ export default function ReviewPanel({
   number,
   headSha,
   files,
+  authoredByViewer,
   blockedReason,
 }: Props) {
   const review = useReviewStream({ owner, repo, number, headSha }, files);
   const { state } = review;
   const [hideNitpicks, setHideNitpicks] = useState(false);
+  const [posting, setPosting] = useState(false);
+  const [outcome, setOutcome] = useState<PostOutcome | undefined>();
+  const [failure, setFailure] = useState<PostFailure | undefined>();
 
   const active = useMemo(() => visibleFindings(state), [state]);
   const dismissed = useMemo(() => dismissedFindings(state), [state]);
@@ -42,7 +50,6 @@ export default function ReviewPanel({
     [active, hideNitpicks],
   );
 
-  const approvedCount = active.filter((f) => f.status === "approved").length;
   const running = state.status === "running";
   const hasFindings = state.findings.length > 0;
 
@@ -51,6 +58,36 @@ export default function ReviewPanel({
     edit: review.edit,
     remove: review.remove,
   };
+
+  const approved = useMemo(
+    () => active.filter((f) => f.status === "approved"),
+    [active],
+  );
+
+  const post = useCallback(
+    async (event: "COMMENT" | "REQUEST_CHANGES") => {
+      setPosting(true);
+      setFailure(undefined);
+      try {
+        const response = await fetch("/api/review/post", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ owner, repo, number, headSha, event, findings: approved }),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          setFailure({ message: data.error ?? "Posting failed.", kind: data.kind, detail: data.detail });
+          return;
+        }
+        setOutcome(data as PostOutcome);
+      } catch {
+        setFailure({ message: "Could not reach the server." });
+      } finally {
+        setPosting(false);
+      }
+    },
+    [owner, repo, number, headSha, approved],
+  );
 
   return (
     <section className="mt-7">
@@ -203,21 +240,15 @@ export default function ReviewPanel({
         </ol>
       )}
 
-      {approvedCount > 0 && (
-        <div className="sticky bottom-4 mt-5 flex items-center gap-3 rounded-lg border border-accent/30 bg-raised px-4 py-3">
-          <span className="text-[13px] text-ink">
-            {approvedCount} finding{approvedCount === 1 ? "" : "s"} approved
-          </span>
-          <button
-            type="button"
-            disabled
-            title="Posting to GitHub arrives in M6"
-            className="ml-auto rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-ink disabled:cursor-not-allowed disabled:opacity-30"
-          >
-            Post {approvedCount} comment{approvedCount === 1 ? "" : "s"}
-          </button>
-        </div>
-      )}
+      <PostBar
+        approved={approved}
+        canRequestChanges={!authoredByViewer}
+        posting={posting}
+        outcome={outcome}
+        failure={failure}
+        onPost={post}
+        onDismissFailure={() => setFailure(undefined)}
+      />
 
       {state.undo && (
         <UndoToast

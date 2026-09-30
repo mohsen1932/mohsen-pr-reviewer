@@ -93,6 +93,7 @@ export default async function PullPage({
           parsed: f.parsed,
           patchOmitted: f.patchOmitted,
         }))}
+        authoredByViewer={pull.authoredByViewer}
         blockedReason={blocker ? `${blocker.label}: ${blocker.problem}` : undefined}
       />
 

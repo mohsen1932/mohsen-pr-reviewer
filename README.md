@@ -43,9 +43,9 @@ no credentials.
 
 ## Status
 
-**M5 of 8 complete** — browse repos and PRs, run a review, watch findings stream
-in grouped by file, then approve, dismiss, edit, delete or add your own (587
-tests, 95% coverage). Posting to GitHub is next. Posting to GitHub is not built yet. See [TASKS.md].
+**M6 of 8 code complete** — browse repos and PRs, run a review, triage the
+findings, and post the approved ones back to GitHub (616 tests, 95.7% coverage).
+Posting has not yet been exercised against a real pull request. Only polish and the README remain. See [TASKS.md].
 
 ## Documentation
 

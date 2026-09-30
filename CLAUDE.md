@@ -5,8 +5,9 @@ no database. Reviews run an agent loop over the OpenAI API against a real checko
 PR's repo; findings are triaged by a human and posted back to GitHub as one
 review with inline comments.
 
-**Status: M5 complete** — reviews stream in and can be triaged. 587 tests at 95%
-coverage. Next: TASKS.md M6 (post approved comments to GitHub).
+**Status: M6 code complete** — posting is built and tested, but has never run
+against a real pull request. 616 tests at 95.7% coverage. Next: a live post,
+then TASKS.md M7 (polish).
 
 ## Where things are decided
 
@@ -89,6 +90,13 @@ find yourself removing one, stop and ask.
   blocking still requires a failure scenario.
 - Editing a line re-anchors; editing anything else does not. A finding the user
   deliberately placed must not move because they fixed a typo in the body.
+- **Posting is one `createReview` call**, never N comment calls. GitHub rejects
+  the whole review with a 422 if any single comment misses the diff, which is
+  why `postReview` re-anchors every finding server-side even though the UI
+  already did.
+- **Never escalate the review event.** An unrecognized event falls back to
+  `COMMENT`; `REQUEST_CHANGES` is only sent when explicitly asked and the PR is
+  not the viewer's own (GitHub 422s that).
 
 ## Conventions
 
