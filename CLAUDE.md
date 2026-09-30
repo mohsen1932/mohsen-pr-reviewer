@@ -5,8 +5,8 @@ no database. Reviews run the Claude Code harness (Agent SDK) against a real
 checkout of the PR's repo; findings are triaged by a human and posted back to
 GitHub as one review with inline comments.
 
-**Status: M2 complete** — scaffold, credentials, repo/PR browsing, diff parsing.
-266 tests at 99.6% coverage. Next: TASKS.md M3 (checkout + agent).
+**Status: M3 complete** — scaffold, credentials, browsing, checkout + agent engine.
+340 tests at 97% coverage. Next: TASKS.md M3b (findings).
 
 ## Where things are decided
 
@@ -69,9 +69,13 @@ stop and ask.
 - **Two sources of repo data, kept separate.** The GitHub API supplies what the
   PR changed (patches, and therefore line anchoring). The checkout is only what
   the agent explores. Never anchor a finding against the checkout. (§3, §8.5)
-- The app's own review skill lives in **`lib/review/skills/`**, deliberately not
-  `.claude/skills/`, so it is never confused with configuration for Claude Code
-  sessions in this repo.
+- Project review instructions live in **`lib/review/instructions.ts`**, appended
+  to the Claude Code preset. Deliberately not `.claude/skills/`, which would be
+  confused with configuration for Claude Code sessions in this repo.
+- **Never set `allowedTools`** on the review query. A bare name there
+  auto-approves the call before `canUseTool` runs, silently disabling the guard.
+- Scripts under `scripts/` are `.mts` and run via `tsx` — the package is CJS, so
+  top-level await needs an explicit ESM extension.
 
 ## Conventions
 

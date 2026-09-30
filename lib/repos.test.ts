@@ -21,6 +21,7 @@ const apiRepo = (over: Record<string, unknown> = {}) => ({
   pushed_at: "2026-09-01T00:00:00Z",
   language: "TypeScript",
   open_issues_count: 3,
+  size: 1024,
   owner: { login: "owner" },
   ...over,
 });
@@ -40,6 +41,7 @@ describe("listRepos", () => {
         pushedAt: "2026-09-01T00:00:00Z",
         language: "TypeScript",
         openIssues: 3,
+        sizeKb: 1024,
       },
     ]);
   });
@@ -77,6 +79,7 @@ describe("listRepos", () => {
       pushedAt: null,
       language: null,
       openIssues: 0,
+      sizeKb: 0,
     });
   });
 

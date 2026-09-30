@@ -82,33 +82,35 @@ private repo.
 
 ## M3 — Checkout + agent
 
+**✅ Complete.** 340 tests, 97% coverage. Verified against a real private repo.
+
 **Done when:** a CLI script clones a PR head and runs `query()` against it,
 printing raw SDK messages.
 
-- [ ] **T3.1** `lib/checkout.ts` — cache at `.cache/repos/<owner>/<repo>`,
+- [x] **T3.1** `lib/checkout.ts` — cache at `.cache/repos/<owner>/<repo>`,
       `git clone --filter=blob:none --no-checkout` (§7.2)
-- [ ] **T3.2** Fetch `pull/<n>/head` (covers fork PRs), `git checkout --detach <head_sha>` (§7.2)
-- [ ] **T3.3** ⚠️ Auth clones with per-invocation `http.extraHeader` — the token
+- [x] **T3.2** Fetch `pull/<n>/head` (covers fork PRs), `git checkout --detach <head_sha>` (§7.2)
+- [x] **T3.3** ⚠️ Auth clones with per-invocation `http.extraHeader` — the token
       must never land in `.git/config` (§7.2, §12)
-- [ ] **T3.4** Repo-size guard (2 GB) — refuse rather than fill the disk (§11)
-- [ ] **T3.5** ⚠️ Confine checkout paths to `CACHE_DIR`, no-`..` check (§12)
-- [ ] **T3.6** Custom tool `git_log_for_file` — fixed args, `readOnlyHint` (§7.4)
-- [ ] **T3.7** Custom tool `git_blame` — fixed args, `readOnlyHint` (§7.4)
-- [ ] **T3.8** `createSdkMcpServer({ name: "review", ... })` wiring (§7.3, §7.4)
-- [ ] **T3.9** `lib/review/engine.ts` — `query()` with `model`, `effort`, `cwd`,
+- [x] **T3.4** Repo-size guard (2 GB) — refuse rather than fill the disk (§11)
+- [x] **T3.5** ⚠️ Confine checkout paths to `CACHE_DIR`, no-`..` check (§12)
+- [x] **T3.6** Custom tool `git_log_for_file` — fixed args, `readOnlyHint` (§7.4)
+- [x] **T3.7** Custom tool `git_blame` — fixed args, `readOnlyHint` (§7.4)
+- [x] **T3.8** `createSdkMcpServer({ name: "review", ... })` wiring (§7.3, §7.4)
+- [x] **T3.9** `lib/review/engine.ts` — `query()` with `model`, `effort`, `cwd`,
       `tools`, `mcpServers`, `allowedTools`, `maxTurns` (§7.3)
-- [ ] **T3.10** ⚠️ **`settingSources: []`** — never load `.claude/` from the
+- [x] **T3.10** ⚠️ **`settingSources: []`** — never load `.claude/` from the
       cloned repo. Single most important line in the options (§7.5, §12)
-- [ ] **T3.11** ⚠️ `canUseTool` denying anything outside the allowlist (§7.3, §12)
-- [ ] **T3.12** Project review skill in `lib/review/skills/` + `plugins` option
+- [x] **T3.11** ⚠️ `canUseTool` denying anything outside the allowlist (§7.3, §12)
+- [x] **T3.12** Project review skill in `lib/review/skills/` + `plugins` option
       (not `.claude/skills/` — see CLAUDE.md) (§7.5)
-- [ ] **T3.13** Verify the bundled `code-review` skill is present — read
+- [x] **T3.13** Verify the bundled `code-review` skill is present — read
       `slash_commands` on the `system`/`init` message. **If absent, move the
       rubric into the app's own skill** (§7.5)
-- [ ] **T3.14** `scripts/review.ts` — CLI harness taking `owner/repo#n`
-- [ ] **T3.15** Wall-clock cap (15 min) via `q.interrupt()` (§11)
+- [x] **T3.14** `scripts/review.ts` — CLI harness taking `owner/repo#n`
+- [x] **T3.15** Wall-clock cap (15 min) via `q.interrupt()` (§11)
 
-- [ ] **T3.16** ⚠️ Tests: path confinement, token absent from `.git/config`, git tool argument safety (§12, §16)
+- [x] **T3.16** ⚠️ Tests: path confinement, token absent from `.git/config`, git tool argument safety (§12, §16)
 ---
 
 ## M3b — Findings

@@ -364,13 +364,21 @@ git checkout --detach <head_sha>
 `--filter=blob:none` is deliberate: a `--depth` shallow clone would make
 `git log`/`git blame` useless, which is most of the reason for cloning at all.
 
-**Do not embed the token in the remote URL.** `https://x-access-token:$TOKEN@...`
-writes the credential into `.git/config` in plaintext, where it outlives the
-review. Pass it per-invocation instead:
+**The token must reach git without touching argv or `.git/config`.** A remote URL
+of the form `https://x-access-token:$TOKEN@...` writes the credential into
+`.git/config`, where it outlives the review; `-c http.extraHeader=...` puts it in
+the command line, where `ps` exposes it to every process on the machine. Both are
+avoided by passing it as git config through the environment:
 
-```bash
-git -c http.extraHeader="Authorization: Basic $(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64)" ...
 ```
+GIT_CONFIG_COUNT=1
+GIT_CONFIG_KEY_0=http.extraHeader
+GIT_CONFIG_VALUE_0=Authorization: Basic <base64 of x-access-token:TOKEN>
+```
+
+`GITHUB_TOKEN` and `ANTHROPIC_API_KEY` are stripped from the git subprocess
+environment: git needs neither, and a subprocess should not hold a credential it
+cannot use.
 
 The cache directory is gitignored, and `.cache/` is reported in the UI with a
 "clear cache" action, since it grows without bound.
@@ -463,9 +471,16 @@ skill cannot know about this app:
 > settings from an untrusted clone is remote code execution, not merely prompt
 > injection. Never set it while `cwd` is a checkout of someone else's repo.
 
-Confirm at M3 that the bundled `code-review` skill is present without filesystem
-setting sources, by reading `slash_commands` on the `system`/`init` message at the
-start of the stream. If it is not, the rubric moves into the app's own skill.
+Confirmed at M3: the bundled `code-review` skill is present with
+`settingSources: []`, verified by reading `slash_commands` on the `system`/`init`
+message. The engine re-checks this every run and reports it on the `done` event,
+so a future SDK change that removes it surfaces rather than silently degrading
+the review.
+
+`allowedTools` is deliberately **not** set. A bare tool name there auto-approves
+the call before `canUseTool` runs, which would make the guard in §7.3 dead code;
+the SDK warns about exactly this. Leaving it unset routes every call through the
+guard.
 
 ### 7.6 Streaming protocol
 

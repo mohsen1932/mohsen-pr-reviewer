@@ -12,6 +12,8 @@ export type RepoSummary = {
   pushedAt: string | null;
   language: string | null;
   openIssues: number;
+  /** Repository size in KB, from GitHub. Guards the clone (§11). */
+  sizeKb: number;
 };
 
 type ApiRepo = {
@@ -23,6 +25,7 @@ type ApiRepo = {
   pushed_at?: string | null;
   language?: string | null;
   open_issues_count?: number;
+  size?: number;
   owner: { login: string } | null;
 };
 
@@ -37,6 +40,7 @@ function toSummary(r: ApiRepo): RepoSummary {
     pushedAt: r.pushed_at ?? null,
     language: r.language ?? null,
     openIssues: r.open_issues_count ?? 0,
+    sizeKb: r.size ?? 0,
   };
 }
 
