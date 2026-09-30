@@ -1,41 +1,48 @@
+import RepoList from "@/components/RepoList";
+import RepoUrlInput from "@/components/RepoUrlInput";
 import SetupNotice from "@/components/SetupNotice";
-import { getAuthenticatedUser } from "@/lib/github";
+import { listRepos } from "@/lib/repos";
+import { scrubError } from "@/lib/scrub";
 import { runStartupChecks } from "@/lib/startup";
 
 export const dynamic = "force-dynamic";
 
-// Placeholder until M2 (T2.1-T2.3) replaces this with the real repo list.
 export default async function ReposPage() {
   const report = await runStartupChecks();
   if (!report.canBrowse) return <SetupNotice report={report} />;
 
-  const user = await getAuthenticatedUser();
-  const blocked = report.checks.filter((c) => !c.ok && c.blocksReviews);
+  const blocked = report.checks.filter((c) => !c.ok);
+
+  let repos;
+  try {
+    repos = await listRepos();
+  } catch (error) {
+    return (
+      <main className="mx-auto max-w-3xl px-4 py-12">
+        <h1 className="text-xl font-semibold">Local PR Reviewer</h1>
+        <p className="mt-4 text-sm text-red-600 dark:text-red-400">
+          Could not list repositories: {scrubError(error)}
+        </p>
+      </main>
+    );
+  }
 
   return (
-    <main className="mx-auto max-w-2xl px-4 py-16">
-      <h1 className="text-2xl font-semibold tracking-tight">Local PR Reviewer</h1>
-      <p className="mt-2 text-sm text-black/60 dark:text-white/60">
-        Signed in as <span className="font-medium">@{user.login}</span>
-        {user.name ? ` (${user.name})` : ""}
-      </p>
+    <main className="mx-auto max-w-3xl px-4 py-12">
+      <h1 className="text-xl font-semibold tracking-tight">Local PR Reviewer</h1>
 
       {blocked.length > 0 && (
-        <div className="mt-6 rounded-md border border-amber-500/40 bg-amber-500/10 p-4 text-sm">
-          <p className="font-medium">Reviews are unavailable</p>
-          <ul className="mt-2 space-y-1 text-black/70 dark:text-white/70">
-            {blocked.map((c) => (
-              <li key={c.id}>
-                <code className="font-mono text-xs">{c.label}</code> — {c.problem}
-              </li>
-            ))}
-          </ul>
+        <div className="mt-4 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+          Reviews are unavailable:{" "}
+          {blocked.map((c) => `${c.label} — ${c.problem}`).join("; ")}
         </div>
       )}
 
-      <p className="mt-10 text-sm text-black/50 dark:text-white/50">
-        Repository list arrives in M2.
-      </p>
+      <RepoUrlInput />
+
+      <div className="mt-8">
+        <RepoList repos={repos} />
+      </div>
     </main>
   );
 }

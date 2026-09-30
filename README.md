@@ -43,9 +43,8 @@ no credentials.
 
 ## Status
 
-**M1 of 8 complete** — scaffold, configuration, startup validation, test harness
-(63 tests, 100% coverage of `lib/`). The repo list,
-the review engine, and posting are not built yet. See [TASKS.md].
+**M2 of 8 complete** — scaffold, configuration, startup validation, repository and
+pull-request browsing with diff parsing (266 tests, 99.6% coverage). The review engine and posting are not built yet. See [TASKS.md].
 
 ## Documentation
 

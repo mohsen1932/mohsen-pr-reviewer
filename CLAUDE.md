@@ -5,8 +5,8 @@ no database. Reviews run the Claude Code harness (Agent SDK) against a real
 checkout of the PR's repo; findings are triaged by a human and posted back to
 GitHub as one review with inline comments.
 
-**Status: M1 complete** (scaffold, config, startup validation, test harness at
-100% coverage). Next: TASKS.md M2.
+**Status: M2 complete** — scaffold, credentials, repo/PR browsing, diff parsing.
+266 tests at 99.6% coverage. Next: TASKS.md M3 (checkout + agent).
 
 ## Where things are decided
 

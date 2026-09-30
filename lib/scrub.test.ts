@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 /** scrub keeps module-level state, so each test gets a fresh module. */
 async function freshScrub() {

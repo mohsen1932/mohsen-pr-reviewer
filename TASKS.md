@@ -52,30 +52,32 @@ missing, and `/repos` shows your GitHub login.
 
 ## M2 — Repo + PR browsing
 
+**✅ Complete.** 266 tests, 99.6% coverage.
+
 **Done when:** you can browse from repo list → open PRs → a PR's diff, for a
 private repo.
 
-- [ ] **T2.1** `GET /api/repos` — `affiliation=...&visibility=all&sort=pushed`,
+- [x] **T2.1** `GET /api/repos` — `affiliation=...&visibility=all&sort=pushed`,
       **paginate to completion** (§6)
-- [ ] **T2.2** `app/repos/page.tsx` — RSC list + client-side filter box
-- [ ] **T2.3** `RepoList.tsx` — private/public badge, owner login, pushed-at (§6, §10)
-- [ ] **T2.4** `lib/repo-url.ts` — parse all five URL forms, including
+- [x] **T2.2** `app/repos/page.tsx` — RSC list + client-side filter box
+- [x] **T2.3** `RepoList.tsx` — private/public badge, owner login, pushed-at (§6, §10)
+- [x] **T2.4** `lib/repo-url.ts` — parse all five URL forms, including
       `/pull/42` deep-link (§6)
-- [ ] **T2.5** `POST /api/repos/resolve` — validate access, return
+- [x] **T2.5** `POST /api/repos/resolve` — validate access, return
       `{owner, repo, pullNumber?}` (§9)
-- [ ] **T2.6** `GET /api/repos/:owner/:repo/pulls` + `PrList.tsx` (§6, §9)
-- [ ] **T2.7** `GET /api/repos/:owner/:repo/pulls/:number` — metadata, changed
+- [x] **T2.6** `GET /api/repos/:owner/:repo/pulls` + `PrList.tsx` (§6, §9)
+- [x] **T2.7** `GET /api/repos/:owner/:repo/pulls/:number` — metadata, changed
       files, patches (§6, §9)
-- [ ] **T2.8** `lib/diff.ts` — parse patches into hunks; the foundation for
+- [x] **T2.8** `lib/diff.ts` — parse patches into hunks; the foundation for
       anchoring (§8.5)
-- [ ] **T2.9** File skip list — lockfiles, minified, `linguist-generated`, binary (§11)
-- [ ] **T2.10** Size limits — 60 files / ~400 KB / 64 KB per patch, with explicit
+- [x] **T2.9** File skip list — lockfiles, minified, `linguist-generated`, binary (§11)
+- [x] **T2.10** Size limits — 60 files / ~400 KB / 64 KB per patch, with explicit
       refusal rather than silent truncation (§11)
-- [ ] **T2.11** ⚠️ Validate `owner`/`repo` against `^[A-Za-z0-9._-]+$` before
+- [x] **T2.11** ⚠️ Validate `owner`/`repo` against `^[A-Za-z0-9._-]+$` before
       Octokit (§12)
-- [ ] **T2.12** PR detail page — header, diff summary, changed-file list
+- [x] **T2.12** PR detail page — header, diff summary, changed-file list
 
-- [ ] **T2.13** Tests: URL parsing (all five forms), hunk parsing, skip list, size limits (§16)
+- [x] **T2.13** Tests: URL parsing (all five forms), hunk parsing, skip list, size limits (§16)
 ---
 
 ## M3 — Checkout + agent

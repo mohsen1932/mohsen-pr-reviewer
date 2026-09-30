@@ -725,10 +725,19 @@ carrier of meaning — the word `blocking` is always present next to it.
 | Repo size for clone | 2 GB | Refuse with a message rather than filling the disk |
 | Wall-clock per review | 15 min | Cancel via `q.interrupt()`, keep findings so far |
 
-Above these limits the review is refused with an explicit message rather than
-silently degraded. `maxTurns` and the wall-clock cap are what bound an agent that
-decides to read the entire repository; because findings stream out through
-`report_finding` (§7.4), hitting either still yields a usable partial review.
+**Degradation is always explicit, never silent.** Rows 1-3 reduce scope rather
+than refuse: excluded files are named in the UI and carried into the review body,
+so the reader knows what was not looked at. Only the repo-size limit is a hard
+refusal — reviewing is pointless if the clone fills the disk.
+
+"Largest-signal" is defined, not vibes: skipped files (below) are dropped first,
+then the remainder is ordered by total changed lines descending, then truncated
+to 60 files and to the byte budget. A file whose own patch exceeds 64 KB stays in
+the list with its patch omitted, because knowing it changed still matters.
+
+`maxTurns` and the wall-clock cap bound an agent that decides to read the entire
+repository; because findings stream out through `report_finding` (§7.4), hitting
+either still yields a usable partial review.
 
 Files skipped unconditionally: lockfiles (`package-lock.json`, `yarn.lock`,
 `pnpm-lock.yaml`, `Cargo.lock`, `go.sum`), minified/bundled output, anything
