@@ -159,6 +159,7 @@ is the only part of the app that would change.
 | Schema | `zod` | Shared by the `report_finding` tool schema, API validation, and the UI |
 | Styling | Tailwind CSS | `shadcn/ui` optional for components |
 | Diff rendering | `parse-diff` (or hand-rolled hunk parser) | Needed anyway for line validation (§8.3) |
+| Tests | `vitest` + `@vitest/coverage-v8` | 80% threshold enforced in config (§16) |
 
 Node 20+ is recommended (this machine has 18.20.3, which Next 15 accepts but Next
 16 does not).
@@ -930,3 +931,55 @@ Each milestone is independently runnable.
 | M6 | Post to GitHub | One review with inline comments lands on a real PR |
 | M7 | Polish | Limits, error states, usage display, empty/loading states |
 | M8 | README | Setup instructions someone else could follow on their own machine |
+
+---
+
+## 16. Testing
+
+**Every module holding logic ships with unit tests, in the same change as the
+code.** A milestone is not complete without them.
+
+### The gate
+
+`vitest.config.mts` enforces an 80% minimum on statements, branches, functions,
+and lines. It is a threshold in config, not a convention — coverage below the bar
+fails the run, so it cannot be skipped by forgetting.
+
+```bash
+npm run test       # vitest run
+npm run coverage   # with the threshold gate
+npm run check      # typecheck + lint + coverage — run before every commit
+```
+
+### Scope
+
+Coverage measures `lib/**` and `app/api/**`: the modules that hold logic.
+
+React server components (`app/**/page.tsx`, `components/**`) are excluded. They
+are presentational, and including them would lower the denominator rather than
+test anything. The exclusion is stated here rather than left implicit, because an
+exclusion that inflates a coverage number is worse than a lower number.
+
+That boundary moves as logic arrives. The finding reducer (§8.3) and the SSE
+client hook (§7.6) are logic that would otherwise live in client components —
+both are tested, by extracting them into `lib/` rather than by testing React.
+
+### What gets tested
+
+| Area | Focus |
+|---|---|
+| `lib/scrub.ts` | Every credential shape redacts; ordinary text survives untouched (§12) |
+| `lib/config.ts` | Defaults, trimming, invalid-value fallback, lazy `cacheDir()` |
+| `lib/startup.ts` | Each check independently: version boundaries, rejection vs. network failure, and that a failing check never echoes a credential |
+| `lib/diff.ts` | Hunk parsing against real patches, including renames and new files |
+| `lib/review/anchor.ts` | In-hunk, snap-within-3, unsnappable → `lineValid: false`, file-not-in-PR → dropped (§8.5) |
+| `lib/findings/*` | Schema constraints (`style` ⇒ `nitpick`, `blocking` ⇒ `failureScenario`), Conventional Comments rendering (§8.1, §6) |
+| `lib/review/checkout.ts` | Path confinement, token never written to `.git/config` (§7.2, §12) |
+| Reducer | Every transition in the finding lifecycle, including delete + undo (§8.3) |
+
+Security invariants (§12) get tests asserting the *negative*: that a token does
+not appear in an error, that a path outside the cache directory is rejected.
+Those are the cases a refactor silently breaks.
+
+External boundaries — Octokit, `git`, the Anthropic API, the Agent SDK — are
+mocked. These are unit tests; they must run offline with no credentials.

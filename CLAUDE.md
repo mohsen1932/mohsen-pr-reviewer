@@ -5,7 +5,8 @@ no database. Reviews run the Claude Code harness (Agent SDK) against a real
 checkout of the PR's repo; findings are triaged by a human and posted back to
 GitHub as one review with inline comments.
 
-**Status: M1 complete** (scaffold, config, startup validation). Next: TASKS.md M2.
+**Status: M1 complete** (scaffold, config, startup validation, test harness at
+100% coverage). Next: TASKS.md M2.
 
 ## Where things are decided
 
@@ -73,6 +74,15 @@ stop and ask.
   sessions in this repo.
 
 ## Conventions
+
+- **Logic ships with tests.** Vitest, 80% minimum on statements/branches/
+  functions/lines, enforced in `vitest.config.mts` — not a convention you can
+  forget. Run `npm run check` (typecheck + lint + coverage) before committing.
+  Coverage scope is `lib/**` and `app/api/**`; if logic would otherwise live in a
+  React component, extract it to `lib/` so it can be tested. SPEC.md §16.
+- **Security invariants get negative tests** — assert the token is *absent* from
+  the error, that the out-of-cache path is *rejected*. Those are what a refactor
+  breaks silently.
 
 - One Zod schema per concept, shared by the MCP tool, the API route, and the UI.
   Don't define a parallel TypeScript interface for something Zod already types.

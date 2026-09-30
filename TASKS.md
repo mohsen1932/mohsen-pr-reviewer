@@ -14,6 +14,10 @@ runnable: finish one and you have something you can use.
 - An Anthropic API key with a spend limit (§5, §11)
 - `git` ≥ 2.19 on `PATH` — needed for `--filter=blob:none` (§7.2)
 
+**Every milestone ships with unit tests** covering the logic it adds — 80%
+minimum, enforced by `vitest.config.mts` (§16). `npm run check` runs typecheck,
+lint, and the coverage gate; a milestone whose `check` fails is not done.
+
 **Legend:** `§n` = SPEC.md section · ⚠️ = security-critical, do not defer
 
 ---
@@ -39,6 +43,9 @@ missing, and `/repos` shows your GitHub login.
 - [x] **T1.8** `app/page.tsx` — redirect to `/repos`, or render setup notice
 - [x] **T1.9** ⚠️ Credential scrubbing helper — no error path may echo a token or
       key; an Anthropic 401 renders as "invalid key" (§12)
+- [x] **T1.11** Vitest + `@vitest/coverage-v8`, 80% thresholds, `npm run check` (§16)
+- [x] **T1.12** Unit tests for `scrub`, `config`, `github`, `startup` — including
+      negative assertions that a failing check never echoes a credential (§12, §16)
 - [x] **T1.10** Bind check: confirm dev server is localhost-only; document it ⚠️ (§12)
 
 ---
@@ -68,6 +75,7 @@ private repo.
       Octokit (§12)
 - [ ] **T2.12** PR detail page — header, diff summary, changed-file list
 
+- [ ] **T2.13** Tests: URL parsing (all five forms), hunk parsing, skip list, size limits (§16)
 ---
 
 ## M3 — Checkout + agent
@@ -98,6 +106,7 @@ printing raw SDK messages.
 - [ ] **T3.14** `scripts/review.ts` — CLI harness taking `owner/repo#n`
 - [ ] **T3.15** Wall-clock cap (15 min) via `q.interrupt()` (§11)
 
+- [ ] **T3.16** ⚠️ Tests: path confinement, token absent from `.git/config`, git tool argument safety (§12, §16)
 ---
 
 ## M3b — Findings
@@ -117,6 +126,7 @@ printing raw SDK messages.
       including `error_max_turns` as a *partial* result (§7.6, §11)
 - [ ] **T3b.7** Iterate the rubric against 3–5 real PRs; tune for precision (§7.5)
 
+- [ ] **T3b.8** Tests: schema constraints, `report_finding` rejection paths, anchoring (in-hunk / snap / unsnappable / not-in-PR) (§16)
 ---
 
 ## M4 — Review UI
@@ -137,6 +147,7 @@ category chips.
 - [ ] **T4.9** Progress display from `status` events (cloning / reading / grepping)
 - [ ] **T4.10** Accessibility: disposition never conveyed by colour alone (§10)
 
+- [ ] **T4.11** Tests: SSE parsing, event→state mapping, grouping and ordering (§16)
 ---
 
 ## M5 — Triage
@@ -159,6 +170,7 @@ refresh.
 - [ ] **T5.9** `DispositionFilter.tsx` + "hide nitpicks" toggle (§8.4, §10)
 - [ ] **T5.10** Verify `sessionStorage` round-trip preserves edits and statuses
 
+- [ ] **T5.11** Tests: every lifecycle transition incl. delete + undo; reducer extracted to `lib/` to be testable (§8.3, §16)
 ---
 
 ## M6 — Post to GitHub
@@ -182,6 +194,7 @@ refresh.
 - [ ] **T6.9** Head-moved handling — `commit_id` mismatch → offer re-review (§11)
 - [ ] **T6.10** Post-success lock + link to the review on GitHub (§10)
 
+- [ ] **T6.11** Tests: Conventional Comments rendering per disposition, review body assembly, own-PR event selection (§16)
 ---
 
 ## M7 — Polish

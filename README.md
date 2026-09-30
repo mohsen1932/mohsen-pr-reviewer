@@ -30,9 +30,21 @@ You need:
 
 The app validates all three at startup and tells you exactly what is missing.
 
+## Development
+
+```bash
+npm run check        # typecheck + lint + coverage gate — run before committing
+npm run test:watch   # vitest in watch mode
+```
+
+Logic ships with unit tests at a minimum of 80% coverage, enforced in
+`vitest.config.mts`. Tests mock every external boundary, so they run offline with
+no credentials.
+
 ## Status
 
-**M1 of 8 complete** — scaffold, configuration, startup validation. The repo list,
+**M1 of 8 complete** — scaffold, configuration, startup validation, test harness
+(63 tests, 100% coverage of `lib/`). The repo list,
 the review engine, and posting are not built yet. See [TASKS.md].
 
 ## Documentation

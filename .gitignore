@@ -43,3 +43,6 @@ next-env.d.ts
 # local PR reviewer
 !.env.example
 /.cache/
+
+# coverage
+/coverage/
