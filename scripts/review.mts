@@ -58,6 +58,21 @@ for await (const event of reviewPullRequest({
     case "tool":
       console.log(`${elapsed()} ${dim("→")} ${event.name} ${dim(event.summary)}`);
       break;
+    case "finding": {
+      const f = event.finding;
+      const tone =
+        f.disposition === "blocking" ? "\x1b[31m" : f.disposition === "nitpick" ? "\x1b[2m" : "\x1b[33m";
+      console.log(
+        `${elapsed()} ${tone}${f.disposition}\x1b[0m ${dim(f.category)} ${f.file}:${f.line}` +
+          (f.snapped ? dim(" (snapped)") : "") +
+          (f.lineValid ? "" : dim(" (file-level)")),
+      );
+      console.log(`         ${bold(f.title)}`);
+      console.log(f.body.replace(/^/gm, "         ").slice(0, 600));
+      if (f.failureScenario) console.log(dim(`         failure: ${f.failureScenario}`));
+      console.log();
+      break;
+    }
     case "message":
       console.log(`${elapsed()} ${dim("—")}`);
       console.log(event.text.replace(/^/gm, "         "));
@@ -66,7 +81,7 @@ for await (const event of reviewPullRequest({
       console.log();
       console.log(
         bold(
-          `done · ${event.turns} turns · $${event.costUsd.toFixed(4)} · ${(event.durationMs / 1000).toFixed(1)}s` +
+          `done · ${event.findingCount} findings · ${event.turns} turns · $${event.costUsd.toFixed(4)} · ${(event.durationMs / 1000).toFixed(1)}s` +
             (event.skillUsed ? "" : " · WARNING: code-review skill not found"),
         ),
       );

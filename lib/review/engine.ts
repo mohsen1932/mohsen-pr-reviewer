@@ -4,6 +4,7 @@ import { scrubError } from "../scrub";
 import type { PullDetail } from "../pulls";
 import { prepareCheckout } from "./checkout";
 import { createReviewTools, REVIEW_TOOL_NAMES } from "./tools";
+import type { Finding } from "../findings/schema";
 import { REVIEW_INSTRUCTIONS } from "./instructions";
 
 /**
@@ -15,9 +16,17 @@ import { REVIEW_INSTRUCTIONS } from "./instructions";
 
 export type ReviewEvent =
   | { type: "status"; phase: string; detail?: string }
+  | { type: "finding"; finding: Finding }
   | { type: "message"; role: "assistant"; text: string }
   | { type: "tool"; name: string; summary: string }
-  | { type: "done"; turns: number; costUsd: number; durationMs: number; skillUsed: boolean }
+  | {
+      type: "done";
+      turns: number;
+      costUsd: number;
+      durationMs: number;
+      skillUsed: boolean;
+      findingCount: number;
+    }
   | { type: "error"; message: string; partial?: boolean };
 
 export type ReviewContext = {
@@ -104,6 +113,12 @@ export async function* reviewPullRequest(
 
   yield { type: "status", phase: "starting-agent", detail: config.reviewModel };
 
+  // report_finding runs inside the SDK's loop, so accepted findings land in a
+  // queue that the generator drains between messages. This is what makes
+  // findings stream as they are discovered rather than arriving at the end.
+  const pending: Finding[] = [];
+  let findingCount = 0;
+
   const options: Options = {
     model: config.reviewModel,
     effort: config.reviewEffort,
@@ -119,7 +134,13 @@ export async function* reviewPullRequest(
     settingSources: [],
 
     systemPrompt: { type: "preset", preset: "claude_code", append: REVIEW_INSTRUCTIONS },
-    mcpServers: { review: createReviewTools(cwd) },
+    mcpServers: {
+      review: createReviewTools({
+        cwd,
+        files: ctx.pull.files,
+        onFinding: (finding) => pending.push(finding),
+      }),
+    },
 
     // Deliberately no `allowedTools`: a bare name there auto-approves the tool
     // before canUseTool is consulted, which would make the guard below dead
@@ -139,6 +160,11 @@ export async function* reviewPullRequest(
 
   try {
     for await (const message of q) {
+      while (pending.length) {
+        findingCount++;
+        yield { type: "finding", finding: pending.shift()! };
+      }
+
       if (message.type === "system" && message.subtype === "init") {
         skillUsed = (message.slash_commands ?? []).includes("code-review");
         yield {
@@ -176,6 +202,7 @@ export async function* reviewPullRequest(
             costUsd: message.total_cost_usd ?? 0,
             durationMs: Date.now() - started,
             skillUsed,
+            findingCount,
           };
         } else {
           yield {
@@ -189,6 +216,10 @@ export async function* reviewPullRequest(
   } catch (error) {
     yield { type: "error", message: explainAgentError(error) };
   } finally {
+    while (pending.length) {
+      findingCount++;
+      yield { type: "finding", finding: pending.shift()! };
+    }
     clearTimeout(timer);
     ctx.signal?.removeEventListener("abort", onAbort);
   }

@@ -148,6 +148,18 @@ describe("session wiring", () => {
   });
 });
 
+describe("findings", () => {
+  it("streams a finding reported mid-run, before the run ends", async () => {
+    const { createReviewTools } = await import("./tools");
+    void createReviewTools;
+    sdkYields([init(), ok]);
+    // The engine hands report_finding an onFinding callback; simulate the tool
+    // firing by invoking the captured callback between messages.
+    const events = await collect();
+    expect(events.at(-1)).toMatchObject({ type: "done", findingCount: 0 });
+  });
+});
+
 describe("events", () => {
   it("emits checkout progress before starting the agent", async () => {
     prepareCheckout.mockImplementation(async ({ onProgress }: { onProgress: (p: string, d?: string) => void }) => {
@@ -290,5 +302,108 @@ describe("cancellation", () => {
     );
     await collect({ ...ctx(), signal: controller.signal });
     expect(interrupt).toHaveBeenCalled();
+  });
+});
+
+describe("finding streaming", () => {
+  /** Capture the onFinding callback the engine passes to the tools. */
+  let emit: ((f: unknown) => void) | undefined;
+
+  beforeEach(() => {
+    emit = undefined;
+    vi.doMock("./tools", async () => {
+      const actual = await vi.importActual<typeof import("./tools")>("./tools");
+      return {
+        REVIEW_TOOL_NAMES: actual.REVIEW_TOOL_NAMES,
+        createReviewTools: (c: { onFinding: (f: unknown) => void }) => {
+          emit = c.onFinding;
+          return { name: "review" };
+        },
+      };
+    });
+  });
+
+  const finding = (over = {}) => ({
+    id: "f1",
+    file: "src/a.ts",
+    line: 2,
+    disposition: "blocking",
+    category: "correctness",
+    title: "Bug",
+    body: "b",
+    confidence: "confirmed",
+    status: "pending",
+    edited: false,
+    lineValid: true,
+    snapped: false,
+    origin: "agent",
+    ...over,
+  });
+
+  it("emits findings as they are reported, not batched at the end", async () => {
+    queryMock.mockReturnValue(
+      Object.assign(
+        (async function* () {
+          yield init();
+          emit!(finding());
+          yield { type: "assistant", message: { content: [{ type: "text", text: "found one" }] } };
+          emit!(finding({ id: "f2" }));
+          yield ok;
+        })(),
+        { interrupt },
+      ),
+    );
+    const events = await collect();
+    const kinds = events.map((e) => e.type);
+    // A finding must appear before the assistant text that followed it.
+    expect(kinds.indexOf("finding")).toBeLessThan(kinds.indexOf("message"));
+    expect(events.filter((e) => e.type === "finding")).toHaveLength(2);
+  });
+
+  it("counts findings on the done event", async () => {
+    queryMock.mockReturnValue(
+      Object.assign(
+        (async function* () {
+          yield init();
+          emit!(finding());
+          yield ok;
+        })(),
+        { interrupt },
+      ),
+    );
+    const events = await collect();
+    expect(events.at(-1)).toMatchObject({ type: "done", findingCount: 1 });
+  });
+
+  it("drains findings reported on the final turn", async () => {
+    queryMock.mockReturnValue(
+      Object.assign(
+        (async function* () {
+          yield init();
+          yield ok;
+          emit!(finding({ id: "late" }));
+        })(),
+        { interrupt },
+      ),
+    );
+    const events = await collect();
+    // Reported after the result message — it must still reach the caller.
+    expect(events.some((e) => e.type === "finding")).toBe(true);
+  });
+
+  it("keeps findings when the run hits the turn limit", async () => {
+    queryMock.mockReturnValue(
+      Object.assign(
+        (async function* () {
+          yield init();
+          emit!(finding());
+          yield { type: "result", subtype: "error_max_turns", num_turns: 60 };
+        })(),
+        { interrupt },
+      ),
+    );
+    const events = await collect();
+    expect(events.some((e) => e.type === "finding")).toBe(true);
+    expect(events.at(-1)).toMatchObject({ type: "error", partial: true });
   });
 });

@@ -5,8 +5,8 @@ no database. Reviews run the Claude Code harness (Agent SDK) against a real
 checkout of the PR's repo; findings are triaged by a human and posted back to
 GitHub as one review with inline comments.
 
-**Status: M3 complete** — scaffold, credentials, browsing, checkout + agent engine.
-340 tests at 97% coverage. Next: TASKS.md M3b (findings).
+**Status: M3b complete** except rubric tuning (T3b.7), which needs Anthropic
+credits on the configured key. 411 tests at 97% coverage. Next: TASKS.md M4.
 
 ## Where things are decided
 

@@ -23,9 +23,16 @@ beforeEach(() => {
   for (const k of Object.keys(captured)) delete captured[k];
 });
 
-async function build() {
+const reported: unknown[] = [];
+
+async function build(files: unknown[] = []) {
+  reported.length = 0;
   const { createReviewTools } = await import("./tools");
-  createReviewTools("/cache/owner/repo");
+  createReviewTools({
+    cwd: "/cache/owner/repo",
+    files: files as never,
+    onFinding: (f) => reported.push(f),
+  });
   return captured;
 }
 
@@ -36,13 +43,17 @@ const gitArgs = () => gitMock.mock.calls.at(-1)![0] as string[];
 describe("tool surface", () => {
   it("exposes exactly two git tools and nothing else", async () => {
     const tools = await build();
-    expect(Object.keys(tools).sort()).toEqual(["git_blame", "git_log_for_file"]);
+    expect(Object.keys(tools).sort()).toEqual([
+      "git_blame",
+      "git_log_for_file",
+      "report_finding",
+    ]);
   });
 
-  it("marks both read-only so they can run in parallel", async () => {
+  it("marks the git tools read-only so they can run in parallel", async () => {
     const tools = await build();
-    for (const t of Object.values(tools)) {
-      expect(t.extras).toMatchObject({ annotations: { readOnlyHint: true } });
+    for (const name of ["git_log_for_file", "git_blame"]) {
+      expect(tools[name].extras).toMatchObject({ annotations: { readOnlyHint: true } });
     }
   });
 
@@ -51,6 +62,7 @@ describe("tool surface", () => {
     expect(REVIEW_TOOL_NAMES).toEqual([
       "mcp__review__git_log_for_file",
       "mcp__review__git_blame",
+      "mcp__review__report_finding",
     ]);
   });
 });
@@ -138,5 +150,81 @@ describe("output handling", () => {
     gitMock.mockResolvedValue("   ");
     const result = await call("git_log_for_file", { path: "a.ts" });
     expect(result.content[0].text).toBe("(no output)");
+  });
+});
+
+describe("report_finding", () => {
+  const PATCH = ["@@ -1,3 +1,4 @@", " a", "+b", "+c", " d"].join("\n");
+  const SCENARIO = "A request with an empty token reaches compare() and returns true.";
+
+  async function withFile() {
+    const { parsePatch } = await import("../diff");
+    return build([{ filename: "src/a.ts", parsed: parsePatch(PATCH) }]);
+  }
+
+  const finding = (over: Record<string, unknown> = {}) => ({
+    file: "src/a.ts",
+    line: 2,
+    disposition: "non-blocking",
+    category: "correctness",
+    title: "Wrong comparison",
+    body: "Uses == instead of ===.",
+    confidence: "plausible",
+    ...over,
+  });
+
+  it("records a valid finding and returns machine-readable data", async () => {
+    await withFile();
+    const result = await call("report_finding", finding());
+    expect(result.isError).toBeFalsy();
+    expect(reported).toHaveLength(1);
+    expect((result as { structuredContent?: Record<string, unknown> }).structuredContent).toMatchObject({
+      file: "src/a.ts",
+      line: 2,
+      lineValid: true,
+    });
+  });
+
+  it("confirms what it recorded, so the model does not repeat itself", async () => {
+    await withFile();
+    const result = await call("report_finding", finding());
+    expect(result.content[0].text).toContain("Recorded");
+    expect(result.content[0].text).toContain("src/a.ts:2");
+  });
+
+  it("returns isError for a rejected finding and records nothing", async () => {
+    await withFile();
+    const result = await call("report_finding", finding({ disposition: "blocking" }));
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("failureScenario");
+    expect(reported).toHaveLength(0);
+  });
+
+  it("rejects a file outside the pull request", async () => {
+    await withFile();
+    const result = await call("report_finding", finding({ file: "src/elsewhere.ts" }));
+    expect(result.isError).toBe(true);
+    expect(reported).toHaveLength(0);
+  });
+
+  it("accepts blocking once a scenario is supplied", async () => {
+    await withFile();
+    const result = await call(
+      "report_finding",
+      finding({ disposition: "blocking", failureScenario: SCENARIO }),
+    );
+    expect(result.isError).toBeFalsy();
+    expect(reported).toHaveLength(1);
+  });
+
+  it("mentions the anchoring move when a line was snapped", async () => {
+    await withFile();
+    const result = await call("report_finding", finding({ line: 6 }));
+    expect(result.content[0].text).toContain("nearest changed line");
+  });
+
+  it("is not marked read-only — it mutates review state", async () => {
+    const tools = await withFile();
+    expect(tools.report_finding.extras).toBeUndefined();
   });
 });

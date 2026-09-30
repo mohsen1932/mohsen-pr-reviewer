@@ -115,22 +115,24 @@ printing raw SDK messages.
 
 ## M3b — Findings
 
+**Complete except T3b.7**, which needs a real review run. 411 tests, 97% coverage.
+
 **Done when:** the CLI prints validated, anchored findings as JSON.
 
-- [ ] **T3b.1** `lib/findings/schema.ts` — `Disposition`, `Category`,
+- [x] **T3b.1** `lib/findings/schema.ts` — `Disposition`, `Category`,
       `FindingSchema` (§8.1, §8.2)
-- [ ] **T3b.2** Classification constraints — `style` ⇒ `nitpick`; `security` ⇏
+- [x] **T3b.2** Classification constraints — `style` ⇒ `nitpick`; `security` ⇏
       `nitpick`; `blocking` ⇒ `failureScenario` required (§8.1, §8.2)
-- [ ] **T3b.3** `report_finding` tool — validate, return `isError` with a usable
+- [x] **T3b.3** `report_finding` tool — validate, return `isError` with a usable
       message so the agent fixes or downgrades, emit `structuredContent` (§7.4)
-- [ ] **T3b.4** `lib/review/anchor.ts` — file-in-PR check, hunk range check,
+- [x] **T3b.4** `lib/review/anchor.ts` — file-in-PR check, hunk range check,
       ±3-line snap, `lineValid: false` fallback (§8.5)
-- [ ] **T3b.5** `ReviewEvent` types + `reviewPullRequest()` async iterable (§3)
-- [ ] **T3b.6** Map SDK messages → `status` / `finding` / `done` / `error`,
+- [x] **T3b.5** `ReviewEvent` types + `reviewPullRequest()` async iterable (§3)
+- [x] **T3b.6** Map SDK messages → `status` / `finding` / `done` / `error`,
       including `error_max_turns` as a *partial* result (§7.6, §11)
-- [ ] **T3b.7** Iterate the rubric against 3–5 real PRs; tune for precision (§7.5)
+- [ ] **T3b.7** ⛔ BLOCKED on Anthropic credits — iterate the rubric against 3–5 real PRs; tune for precision (§7.5)
 
-- [ ] **T3b.8** Tests: schema constraints, `report_finding` rejection paths, anchoring (in-hunk / snap / unsnappable / not-in-PR) (§16)
+- [x] **T3b.8** Tests: schema constraints, `report_finding` rejection paths, anchoring (in-hunk / snap / unsnappable / not-in-PR) (§16)
 ---
 
 ## M4 — Review UI

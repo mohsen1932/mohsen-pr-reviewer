@@ -2,6 +2,9 @@ import { z } from "zod";
 import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import { isSafeRepoPath } from "../validate";
 import { git } from "./git";
+import { acceptFinding } from "../findings/report";
+import { REPORTED_FINDING_SHAPE, type Finding } from "../findings/schema";
+import type { AnchorTarget } from "./anchor";
 
 /**
  * The agent's git access. SPEC.md §7.4, §12.
@@ -30,7 +33,16 @@ function rejectPath(p: string) {
   );
 }
 
-export function createReviewTools(cwd: string) {
+export type ReviewToolsContext = {
+  cwd: string;
+  /** Changed files with parsed patches, for anchoring (§8.5). */
+  files: AnchorTarget[];
+  /** Called for each accepted finding, so it can stream to the browser. */
+  onFinding: (finding: Finding) => void;
+};
+
+export function createReviewTools(ctx: ReviewToolsContext) {
+  const { cwd } = ctx;
   const gitLogForFile = tool(
     "git_log_for_file",
     "Recent commits that touched a file, newest first. Use this to see why code " +
@@ -91,10 +103,45 @@ export function createReviewTools(cwd: string) {
     { annotations: { readOnlyHint: true } },
   );
 
+  const reportFinding = tool(
+    "report_finding",
+    "Report one review finding. Call this once per finding, as you find it — " +
+      "do not collect them and summarize at the end. The finding is validated " +
+      "and anchored to the diff immediately; if it is rejected you will be told " +
+      "why and can correct it.",
+    REPORTED_FINDING_SHAPE,
+    async (input) => {
+      const result = acceptFinding(input, ctx.files);
+
+      if (!result.accepted) {
+        // isError so the model treats this as a failed call and retries,
+        // rather than as odd-looking data.
+        return textResult(result.message, true);
+      }
+
+      ctx.onFinding(result.finding);
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `Recorded: ${result.finding.disposition} / ${result.finding.category} at ${result.finding.file}:${result.finding.line}.${result.note ? ` ${result.note}` : ""}`,
+          },
+        ],
+        structuredContent: {
+          id: result.finding.id,
+          file: result.finding.file,
+          line: result.finding.line,
+          lineValid: result.finding.lineValid,
+          snapped: result.finding.snapped,
+        },
+      };
+    },
+  );
+
   return createSdkMcpServer({
     name: "review",
     version: "1.0.0",
-    tools: [gitLogForFile, gitBlame],
+    tools: [gitLogForFile, gitBlame, reportFinding],
   });
 }
 
@@ -102,4 +149,5 @@ export function createReviewTools(cwd: string) {
 export const REVIEW_TOOL_NAMES = [
   "mcp__review__git_log_for_file",
   "mcp__review__git_blame",
+  "mcp__review__report_finding",
 ] as const;
