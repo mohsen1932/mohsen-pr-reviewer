@@ -5,8 +5,8 @@ no database. Reviews run an agent loop over the OpenAI API against a real checko
 PR's repo; findings are triaged by a human and posted back to GitHub as one
 review with inline comments.
 
-**Status: M4 complete** — reviews stream into the UI. 522 tests at 94% coverage.
-Next: TASKS.md M5 (triage: approve / dismiss / delete / edit).
+**Status: M5 complete** — reviews stream in and can be triaged. 587 tests at 95%
+coverage. Next: TASKS.md M6 (post approved comments to GitHub).
 
 ## Where things are decided
 
@@ -82,7 +82,13 @@ find yourself removing one, stop and ask.
   by default, and finding bodies come from model output derived from a diff an
   attacker can write. URLs go through `safeUrl`.
 - The review reducer lives in `lib/review/reducer.ts`, not in the component, so
-  its transitions are testable. Same for SSE parsing in `lib/review/stream.ts`.
+  its transitions are testable. Same for SSE parsing (`stream.ts`), session
+  persistence (`persist.ts`), and the edit rules (`lib/findings/edit.ts`).
+- **A human edit is held to the same classification rules as the agent.**
+  `applyEdit` re-validates against the schema, so promoting a finding to
+  blocking still requires a failure scenario.
+- Editing a line re-anchors; editing anything else does not. A finding the user
+  deliberately placed must not move because they fixed a typo in the body.
 
 ## Conventions
 

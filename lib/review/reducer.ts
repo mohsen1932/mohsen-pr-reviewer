@@ -1,4 +1,4 @@
-import type { Finding } from "../findings/schema";
+import type { Disposition, Finding, FindingStatus } from "../findings/schema";
 import type { ReviewEvent, ReviewUsage } from "./engine";
 
 /**
@@ -33,13 +33,31 @@ export type ReviewState = {
   /** True when the run ended early but findings are still worth showing. */
   partial: boolean;
   summary?: ReviewSummary;
+  /**
+   * Findings removed in the last action, held for undo. Delete is the only
+   * destructive action here and there is no database behind it (§8.3).
+   */
+  undo?: { findings: Finding[]; label: string };
 };
+
+/** Which findings a bulk action applies to. */
+export type BulkScope =
+  | { kind: "all" }
+  | { kind: "file"; file: string }
+  | { kind: "disposition"; disposition: Disposition };
 
 export type ReviewAction =
   | { type: "start" }
   | { type: "reset" }
   | { type: "disconnected" }
-  | { type: "event"; event: ReviewEvent };
+  | { type: "event"; event: ReviewEvent }
+  | { type: "setStatus"; id: string; status: FindingStatus }
+  | { type: "replace"; finding: Finding }
+  | { type: "add"; finding: Finding }
+  | { type: "delete"; id: string }
+  | { type: "bulk"; scope: BulkScope; action: "approve" | "dismiss" | "delete" }
+  | { type: "undo" }
+  | { type: "clearUndo" };
 
 export const initialReviewState: ReviewState = {
   status: "idle",
@@ -73,7 +91,76 @@ export function reviewReducer(state: ReviewState, action: ReviewAction): ReviewS
 
     case "event":
       return applyEvent(state, action.event);
+
+    case "setStatus":
+      return mapFindings(state, (f) =>
+        f.id === action.id ? { ...f, status: action.status } : f,
+      );
+
+    case "replace":
+      return mapFindings(state, (f) => (f.id === action.finding.id ? action.finding : f));
+
+    case "add":
+      return { ...state, findings: [...state.findings, action.finding] };
+
+    case "delete": {
+      const removed = state.findings.filter((f) => f.id === action.id);
+      if (removed.length === 0) return state;
+      return {
+        ...state,
+        findings: state.findings.filter((f) => f.id !== action.id),
+        undo: { findings: removed, label: "Finding deleted" },
+      };
+    }
+
+    case "bulk":
+      return applyBulk(state, action.scope, action.action);
+
+    case "undo":
+      if (!state.undo) return state;
+      return {
+        ...state,
+        // Restored at the end; ordering in the panel comes from grouping (§8.4),
+        // so position in this array is not meaningful.
+        findings: [...state.findings, ...state.undo.findings],
+        undo: undefined,
+      };
+
+    case "clearUndo":
+      return state.undo ? { ...state, undo: undefined } : state;
   }
+}
+
+function mapFindings(state: ReviewState, fn: (f: Finding) => Finding): ReviewState {
+  return { ...state, findings: state.findings.map(fn) };
+}
+
+function inScope(finding: Finding, scope: BulkScope): boolean {
+  if (scope.kind === "all") return true;
+  if (scope.kind === "file") return finding.file === scope.file;
+  return finding.disposition === scope.disposition;
+}
+
+function applyBulk(
+  state: ReviewState,
+  scope: BulkScope,
+  action: "approve" | "dismiss" | "delete",
+): ReviewState {
+  if (action === "delete") {
+    const removed = state.findings.filter((f) => inScope(f, scope));
+    if (removed.length === 0) return state;
+    return {
+      ...state,
+      findings: state.findings.filter((f) => !inScope(f, scope)),
+      undo: {
+        findings: removed,
+        label: `${removed.length} finding${removed.length === 1 ? "" : "s"} deleted`,
+      },
+    };
+  }
+
+  const status: FindingStatus = action === "approve" ? "approved" : "dismissed";
+  return mapFindings(state, (f) => (inScope(f, scope) ? { ...f, status } : f));
 }
 
 function applyEvent(state: ReviewState, event: ReviewEvent): ReviewState {
@@ -133,3 +220,12 @@ function applyEvent(state: ReviewState, event: ReviewEvent): ReviewState {
 export function hasResults(state: ReviewState): boolean {
   return state.findings.length > 0;
 }
+
+export const visibleFindings = (state: ReviewState): Finding[] =>
+  state.findings.filter((f) => f.status !== "dismissed");
+
+export const dismissedFindings = (state: ReviewState): Finding[] =>
+  state.findings.filter((f) => f.status === "dismissed");
+
+export const approvedFindings = (state: ReviewState): Finding[] =>
+  state.findings.filter((f) => f.status === "approved");

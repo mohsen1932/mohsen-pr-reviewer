@@ -43,9 +43,9 @@ no credentials.
 
 ## Status
 
-**M4 of 8 complete** — browse repos and PRs, run a review, and watch findings
-stream in grouped by file (522 tests, 94% coverage). Triage and posting to
-GitHub are next. Triage and posting are not built yet. See [TASKS.md].
+**M5 of 8 complete** — browse repos and PRs, run a review, watch findings stream
+in grouped by file, then approve, dismiss, edit, delete or add your own (587
+tests, 95% coverage). Posting to GitHub is next. Posting to GitHub is not built yet. See [TASKS.md].
 
 ## Documentation
 

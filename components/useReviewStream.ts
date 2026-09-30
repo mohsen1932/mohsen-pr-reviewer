@@ -4,9 +4,14 @@ import { useCallback, useEffect, useReducer, useRef } from "react";
 import {
   initialReviewState,
   reviewReducer,
+  type BulkScope,
   type ReviewState,
 } from "@/lib/review/reducer";
+import { applyEdit, createUserFinding, type EditableFields } from "@/lib/findings/edit";
+import type { AnchorTarget } from "@/lib/review/anchor";
+import type { FindingStatus } from "@/lib/findings/schema";
 import { EventStreamParser } from "@/lib/review/stream";
+import { loadState, saveState } from "@/lib/review/persist";
 
 /**
  * Drives a review and turns its SSE frames into reducer actions.
@@ -17,31 +22,22 @@ import { EventStreamParser } from "@/lib/review/stream";
 
 type Target = { owner: string; repo: string; number: number; headSha: string };
 
-const storageKey = (t: Target) =>
-  `review:${t.owner}/${t.repo}#${t.number}@${t.headSha}`;
-
-function restore(target: Target): ReviewState {
-  if (typeof window === "undefined") return initialReviewState;
-  try {
-    const raw = window.sessionStorage.getItem(storageKey(target));
-    return raw ? (JSON.parse(raw) as ReviewState) : initialReviewState;
-  } catch {
-    // Private mode, cleared storage, or a shape from an older build.
-    return initialReviewState;
-  }
+/** Ids for user-authored findings; crypto.randomUUID is not in every browser. */
+function newId(): string {
+  return globalThis.crypto?.randomUUID?.() ?? `user-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-export function useReviewStream(target: Target) {
-  const [state, dispatch] = useReducer(reviewReducer, target, restore);
+export function useReviewStream(target: Target, files: AnchorTarget[]) {
+  const [state, dispatch] = useReducer(reviewReducer, target, (t) =>
+    loadState(typeof window === "undefined" ? undefined : window.sessionStorage, t),
+  );
   const abortRef = useRef<AbortController | null>(null);
+  // Read inside stable callbacks, so editing does not re-create them per keystroke.
+  const stateRef = useRef(state);
+  stateRef.current = state;
 
   useEffect(() => {
-    if (state.status === "idle") return;
-    try {
-      window.sessionStorage.setItem(storageKey(target), JSON.stringify(state));
-    } catch {
-      // Storage is a convenience here, never the source of truth.
-    }
+    saveState(window.sessionStorage, target, state);
   }, [state, target]);
 
   // A run belongs to the mounted panel; leaving the page cancels it server-side.
@@ -99,5 +95,43 @@ export function useReviewStream(target: Target) {
   const cancel = useCallback(() => abortRef.current?.abort(), []);
   const reset = useCallback(() => dispatch({ type: "reset" }), []);
 
-  return { state, start, cancel, reset };
+  const setStatus = useCallback(
+    (id: string, status: FindingStatus) => dispatch({ type: "setStatus", id, status }),
+    [],
+  );
+
+  const remove = useCallback((id: string) => dispatch({ type: "delete", id }), []);
+  const undo = useCallback(() => dispatch({ type: "undo" }), []);
+  const clearUndo = useCallback(() => dispatch({ type: "clearUndo" }), []);
+
+  const bulk = useCallback(
+    (scope: BulkScope, action: "approve" | "dismiss" | "delete") =>
+      dispatch({ type: "bulk", scope, action }),
+    [],
+  );
+
+  /** Returns a message when the edit is rejected, so the form can show it. */
+  const edit = useCallback(
+    (id: string, changes: Partial<EditableFields>): string | undefined => {
+      const finding = stateRef.current.findings.find((f) => f.id === id);
+      if (!finding) return "That finding no longer exists.";
+      const result = applyEdit(finding, changes, files);
+      if (!result.ok) return result.message;
+      dispatch({ type: "replace", finding: result.finding });
+      return undefined;
+    },
+    [files],
+  );
+
+  const add = useCallback(
+    (draft: EditableFields & { file: string }): string | undefined => {
+      const result = createUserFinding(draft, files, newId());
+      if (!result.ok) return result.message;
+      dispatch({ type: "add", finding: result.finding });
+      return undefined;
+    },
+    [files],
+  );
+
+  return { state, start, cancel, reset, setStatus, remove, undo, clearUndo, bulk, edit, add };
 }

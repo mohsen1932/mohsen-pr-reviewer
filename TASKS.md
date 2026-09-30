@@ -163,25 +163,28 @@ category chips.
 
 ## M5 — Triage
 
+**✅ Complete.** 65 tests across the reducer, edit rules and persistence.
+
 **Done when:** approve / dismiss / delete / edit / add all work and survive a
 refresh.
 
-- [ ] **T5.1** State machine — `pending` / `approved` / `dismissed` + hard delete (§8.3)
-- [ ] **T5.2** `FindingEditor.tsx` — body, title, disposition, category, line (§8.3, §10)
-- [ ] **T5.3** Re-anchor on line edit; inline error when the new line is not in
+- [x] **T5.1** State machine — `pending` / `approved` / `dismissed` + hard delete (§8.3)
+- [x] **T5.2** `FindingEditor.tsx` — body, title, disposition, category, line (§8.3, §10)
+- [x] **T5.3** Re-anchor on line edit; inline error when the new line is not in
       the diff (§8.3, §8.5)
-- [ ] **T5.4** `edited: true` marker on the card (§8.3)
-- [ ] **T5.5** `DismissedDrawer.tsx` — collapsed, restorable (§8.3, §10)
-- [ ] **T5.6** Delete + ~10s undo toast — the only destructive action, the only
+- [x] **T5.4** `edited: true` marker on the card (§8.3)
+- [x] **T5.5** `DismissedDrawer.tsx` — collapsed, restorable (§8.3, §10)
+- [x] **T5.6** Delete + ~10s undo toast — the only destructive action, the only
       undo (§8.3, §10)
-- [ ] **T5.7** `AddFinding.tsx` — author a finding on any diff line,
+- [x] **T5.7** `AddFinding.tsx` — author a finding on any diff line,
       `origin: "user"`, visibly marked (§8.2, §8.3)
-- [ ] **T5.8** Bulk actions — approve all blocking; per-group approve/dismiss;
+- [x] **T5.8** Bulk actions — approve all blocking; per-group approve/dismiss;
       delete all nitpicks (§10)
-- [ ] **T5.9** `DispositionFilter.tsx` + "hide nitpicks" toggle (§8.4, §10)
-- [ ] **T5.10** Verify `sessionStorage` round-trip preserves edits and statuses
+- [x] **T5.9** `DispositionFilter.tsx` + "hide nitpicks" toggle (§8.4, §10)
+- [x] **T5.10** `lib/review/persist.ts` — round-trip verified for edits, triage
+      status, and a hostile storage; keyed by head sha so a pushed-to PR starts clean
 
-- [ ] **T5.11** Tests: every lifecycle transition incl. delete + undo; reducer extracted to `lib/` to be testable (§8.3, §16)
+- [x] **T5.11** Tests: every lifecycle transition incl. delete + undo; reducer extracted to `lib/` to be testable (§8.3, §16)
 ---
 
 ## M6 — Post to GitHub

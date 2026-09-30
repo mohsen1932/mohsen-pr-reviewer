@@ -88,6 +88,11 @@ export default async function PullPage({
         repo={repo}
         number={pull.number}
         headSha={pull.headSha}
+        files={pull.files.map((f) => ({
+          filename: f.filename,
+          parsed: f.parsed,
+          patchOmitted: f.patchOmitted,
+        }))}
         blockedReason={blocker ? `${blocker.label}: ${blocker.problem}` : undefined}
       />
 

@@ -171,3 +171,171 @@ describe("immutability", () => {
     expect(JSON.stringify(before)).toBe(snapshot);
   });
 });
+
+describe("triage", () => {
+  const withFindings = (...fs: Finding[]): ReviewState =>
+    run([{ type: "start" }, ...fs.map((x) => ev({ type: "finding", finding: x }))]);
+
+  it("approves and un-approves a finding", () => {
+    const state = withFindings(finding({ id: "a" }));
+    const approved = reviewReducer(state, { type: "setStatus", id: "a", status: "approved" });
+    expect(approved.findings[0].status).toBe("approved");
+    const back = reviewReducer(approved, { type: "setStatus", id: "a", status: "pending" });
+    expect(back.findings[0].status).toBe("pending");
+  });
+
+  it("dismissing keeps the finding, so it can be restored", () => {
+    const state = withFindings(finding({ id: "a" }));
+    const after = reviewReducer(state, { type: "setStatus", id: "a", status: "dismissed" });
+    expect(after.findings).toHaveLength(1);
+    expect(after.findings[0].status).toBe("dismissed");
+  });
+
+  it("leaves other findings alone", () => {
+    const state = withFindings(finding({ id: "a" }), finding({ id: "b" }));
+    const after = reviewReducer(state, { type: "setStatus", id: "a", status: "approved" });
+    expect(after.findings.find((f) => f.id === "b")!.status).toBe("pending");
+  });
+
+  it("replaces an edited finding in place", () => {
+    const state = withFindings(finding({ id: "a", title: "old" }));
+    const edited = { ...state.findings[0], title: "new", edited: true };
+    const after = reviewReducer(state, { type: "replace", finding: edited });
+    expect(after.findings[0]).toMatchObject({ title: "new", edited: true });
+  });
+
+  it("adds a user-authored finding", () => {
+    const state = withFindings(finding({ id: "a" }));
+    const mine = finding({ id: "mine", origin: "user" });
+    const after = reviewReducer(state, { type: "add", finding: mine });
+    expect(after.findings.map((f) => f.id)).toEqual(["a", "mine"]);
+  });
+});
+
+describe("delete and undo", () => {
+  const withFindings = (...fs: Finding[]): ReviewState =>
+    run([{ type: "start" }, ...fs.map((x) => ev({ type: "finding", finding: x }))]);
+
+  it("removes the finding and offers an undo", () => {
+    const state = withFindings(finding({ id: "a" }), finding({ id: "b" }));
+    const after = reviewReducer(state, { type: "delete", id: "a" });
+    expect(after.findings.map((f) => f.id)).toEqual(["b"]);
+    expect(after.undo).toMatchObject({ label: "Finding deleted" });
+  });
+
+  it("undo restores exactly what was deleted", () => {
+    const original = finding({ id: "a", title: "keep me", status: "approved" });
+    const deleted = reviewReducer(withFindings(original), { type: "delete", id: "a" });
+    const restored = reviewReducer(deleted, { type: "undo" });
+    expect(restored.findings).toHaveLength(1);
+    expect(restored.findings[0]).toEqual(original);
+    expect(restored.undo).toBeUndefined();
+  });
+
+  it("undo with nothing pending changes nothing", () => {
+    const state = withFindings(finding({ id: "a" }));
+    expect(reviewReducer(state, { type: "undo" })).toBe(state);
+  });
+
+  it("deleting a missing id changes nothing", () => {
+    const state = withFindings(finding({ id: "a" }));
+    expect(reviewReducer(state, { type: "delete", id: "nope" })).toBe(state);
+  });
+
+  it("clearUndo drops the offer once it expires", () => {
+    const deleted = reviewReducer(withFindings(finding({ id: "a" })), { type: "delete", id: "a" });
+    const cleared = reviewReducer(deleted, { type: "clearUndo" });
+    expect(cleared.undo).toBeUndefined();
+    // The finding stays gone — the toast expiring is not a second chance.
+    expect(cleared.findings).toHaveLength(0);
+  });
+});
+
+describe("bulk actions", () => {
+  const state = () =>
+    run([
+      { type: "start" },
+      ev({ type: "finding", finding: finding({ id: "b1", disposition: "blocking", file: "a.ts" }) }),
+      ev({ type: "finding", finding: finding({ id: "n1", disposition: "nitpick", file: "a.ts" }) }),
+      ev({ type: "finding", finding: finding({ id: "n2", disposition: "nitpick", file: "b.ts" }) }),
+    ]);
+
+  it("approves every blocking finding", () => {
+    const after = reviewReducer(state(), {
+      type: "bulk",
+      scope: { kind: "disposition", disposition: "blocking" },
+      action: "approve",
+    });
+    expect(after.findings.find((f) => f.id === "b1")!.status).toBe("approved");
+    expect(after.findings.find((f) => f.id === "n1")!.status).toBe("pending");
+  });
+
+  it("dismisses every finding in one file", () => {
+    const after = reviewReducer(state(), {
+      type: "bulk",
+      scope: { kind: "file", file: "a.ts" },
+      action: "dismiss",
+    });
+    expect(after.findings.filter((f) => f.status === "dismissed").map((f) => f.id)).toEqual([
+      "b1",
+      "n1",
+    ]);
+  });
+
+  it("deletes every nitpick, with one undo for the batch", () => {
+    const after = reviewReducer(state(), {
+      type: "bulk",
+      scope: { kind: "disposition", disposition: "nitpick" },
+      action: "delete",
+    });
+    expect(after.findings.map((f) => f.id)).toEqual(["b1"]);
+    expect(after.undo!.findings).toHaveLength(2);
+    expect(after.undo!.label).toBe("2 findings deleted");
+  });
+
+  it("undo restores a whole batch", () => {
+    const deleted = reviewReducer(state(), {
+      type: "bulk",
+      scope: { kind: "disposition", disposition: "nitpick" },
+      action: "delete",
+    });
+    expect(reviewReducer(deleted, { type: "undo" }).findings).toHaveLength(3);
+  });
+
+  it("a bulk delete matching nothing changes nothing", () => {
+    const s = state();
+    expect(
+      reviewReducer(s, {
+        type: "bulk",
+        scope: { kind: "file", file: "missing.ts" },
+        action: "delete",
+      }),
+    ).toBe(s);
+  });
+
+  it("scope 'all' covers everything", () => {
+    const after = reviewReducer(state(), {
+      type: "bulk",
+      scope: { kind: "all" },
+      action: "approve",
+    });
+    expect(after.findings.every((f) => f.status === "approved")).toBe(true);
+  });
+});
+
+describe("selectors", () => {
+  const state = () =>
+    run([
+      { type: "start" },
+      ev({ type: "finding", finding: finding({ id: "p" }) }),
+      ev({ type: "finding", finding: finding({ id: "a", status: "approved" }) }),
+      ev({ type: "finding", finding: finding({ id: "d", status: "dismissed" }) }),
+    ]);
+
+  it("splits visible from dismissed", async () => {
+    const { visibleFindings, dismissedFindings, approvedFindings } = await import("./reducer");
+    expect(visibleFindings(state()).map((f) => f.id)).toEqual(["p", "a"]);
+    expect(dismissedFindings(state()).map((f) => f.id)).toEqual(["d"]);
+    expect(approvedFindings(state()).map((f) => f.id)).toEqual(["a"]);
+  });
+});
