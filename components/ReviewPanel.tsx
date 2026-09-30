@@ -51,6 +51,9 @@ export default function ReviewPanel({
 
   const running = state.status === "running";
   const hasFindings = state.findings.length > 0;
+  // Once posted, the findings are a record of what was sent. Editing them would
+  // silently diverge from what is on GitHub (§10).
+  const posted = Boolean(outcome);
 
   const actions = {
     setStatus: review.setStatus,
@@ -104,6 +107,8 @@ export default function ReviewPanel({
             type="button"
             onClick={() => {
               if (state.status !== "idle") review.reset();
+              setOutcome(undefined);
+              setFailure(undefined);
               void review.start();
             }}
             disabled={Boolean(blockedReason)}
@@ -112,6 +117,12 @@ export default function ReviewPanel({
           >
             {state.status === "idle" ? "Review this PR" : "Review again"}
           </button>
+        )}
+
+        {posted && (
+          <span className="text-xs text-ink-muted">
+            Posted. Start a new review to make further comments.
+          </span>
         )}
 
         {blockedReason ? (
@@ -148,6 +159,18 @@ export default function ReviewPanel({
         </div>
       )}
 
+      {posted && outcome && (
+        <div className="mt-4 rounded-lg border border-add/30 bg-add/[0.06] px-4 py-3 text-[13px]">
+          <p className="text-ink">
+            This review is on GitHub and these findings are read-only.
+          </p>
+          <p className="mt-1 text-ink-muted">
+            Editing them here would no longer match what was posted. To comment
+            further, run a new review — it will pick up the current head.
+          </p>
+        </div>
+      )}
+
       {hasFindings && (
         <>
           <div className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -156,6 +179,7 @@ export default function ReviewPanel({
               {counts.blocking} blocking · {counts["non-blocking"]} non-blocking
             </span>
 
+            {!posted && (
             <span className="ml-auto flex flex-wrap gap-1.5">
               <button
                 type="button"
@@ -168,6 +192,7 @@ export default function ReviewPanel({
                 Approve all blocking
               </button>
             </span>
+            )}
           </div>
 
           <div className="mt-3 space-y-3">
@@ -177,6 +202,7 @@ export default function ReviewPanel({
                 group={group}
                 patch={patchByFile.get(group.file)}
                 actions={actions}
+                locked={posted}
                 onBulk={(file, action) => review.bulk({ kind: "file", file }, action)}
               />
             ))}
@@ -186,6 +212,7 @@ export default function ReviewPanel({
             findings={dismissed}
             setStatus={review.setStatus}
             remove={review.remove}
+            locked={posted}
           />
         </>
       )}

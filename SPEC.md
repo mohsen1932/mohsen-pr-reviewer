@@ -314,8 +314,11 @@ in ~8k requests.
 | `blocking` | `**issue (blocking):**`, or `**security (blocking):**` for that category |
 | `non-blocking` | `**suggestion (non-blocking):**` |
 
-The review body carries a summary table of counts by disposition, plus any
-findings that could not be anchored inline (§8.5).
+The review body carries **only** findings that could not be anchored inline
+(§8.5) — no summary, no model attribution. GitHub requires a non-empty body on a
+`COMMENT` or `REQUEST_CHANGES` review, so when there is nothing to carry it falls
+back to one short neutral line (`MINIMAL_REVIEW_BODY`); the comments speak for
+themselves.
 
 ### Review event
 
@@ -716,7 +719,12 @@ carrier of meaning — the word `blocking` is always present next to it.
   from.
 - Posting shows a confirm dialog with the comment count broken down by
   disposition and the target PR.
-- After a successful post, the panel locks and links to the review on GitHub.
+- **After a successful post the panel locks.** Every triage control disappears —
+  per-finding actions, bulk actions, and the dismissed drawer's restore and
+  delete. Each finding is labelled `posted` or `not posted`, and the unposted
+  ones dim. Editing a posted finding would silently diverge from what is on
+  GitHub, so the only way forward is a new review, which picks up the current
+  head.
 
 ---
 

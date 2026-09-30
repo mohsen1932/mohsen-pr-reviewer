@@ -1,4 +1,3 @@
-import { countByDisposition } from "./group";
 import type { Finding } from "./schema";
 
 /**
@@ -40,46 +39,28 @@ export function renderFileLevelNote(finding: Finding): string {
 }
 
 export type ReviewBodyInput = {
-  inline: Finding[];
   fileLevel: Finding[];
-  model: string;
 };
 
 /**
- * The review's own body: what was posted, and anything that could not be
- * anchored to a line. A reader should be able to tell the scope of the review
- * from this alone.
+ * GitHub requires a non-empty `body` on a COMMENT or REQUEST_CHANGES review, so
+ * this is the shortest thing that is still true when there is nothing else to
+ * say. No summary, no attribution — the comments speak for themselves.
  */
-export function renderReviewBody({ inline, fileLevel, model }: ReviewBodyInput): string {
-  const all = [...inline, ...fileLevel];
-  const counts = countByDisposition(all);
-  const parts: string[] = [];
+export const MINIMAL_REVIEW_BODY = "Review comments below.";
 
-  const summary = [
-    counts.blocking > 0 ? `${counts.blocking} blocking` : null,
-    counts["non-blocking"] > 0 ? `${counts["non-blocking"]} non-blocking` : null,
-  ].filter(Boolean);
+/**
+ * The review's own body. It carries only what cannot go anywhere else: findings
+ * that could not be anchored to a line in the diff (§8.5).
+ */
+export function renderReviewBody({ fileLevel }: ReviewBodyInput): string {
+  if (fileLevel.length === 0) return MINIMAL_REVIEW_BODY;
 
-  parts.push(
-    `**AI review** — ${all.length} finding${all.length === 1 ? "" : "s"}` +
-      (summary.length ? ` (${summary.join(", ")})` : ""),
-  );
-
-  if (fileLevel.length > 0) {
-    parts.push(
-      "",
-      "### General",
-      "",
-      "These could not be anchored to a line in the diff:",
-      "",
-      ...fileLevel.map(renderFileLevelNote),
-    );
-  }
-
-  parts.push(
+  return [
+    "### General",
     "",
-    `<sub>Reviewed by \`${model}\`. Every comment was reviewed and approved by a human before posting.</sub>`,
-  );
-
-  return parts.join("\n");
+    "These could not be anchored to a line in the diff:",
+    "",
+    ...fileLevel.map(renderFileLevelNote),
+  ].join("\n");
 }

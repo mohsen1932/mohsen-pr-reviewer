@@ -69,34 +69,21 @@ describe("renderComment", () => {
 });
 
 describe("renderReviewBody", () => {
-  const body = (over: Parameters<typeof renderReviewBody>[0]) => renderReviewBody(over);
-
-  it("summarizes counts by disposition", () => {
-    const text = body({
-      inline: [f(), f({ id: "2", disposition: "non-blocking", failureScenario: undefined })],
-      fileLevel: [],
-      model: "gpt-5.4-mini",
-    });
-    expect(text).toContain("2 findings");
-    expect(text).toContain("1 blocking");
-    expect(text).toContain("1 non-blocking");
+  it("carries no summary and no attribution", () => {
+    const text = renderReviewBody({ fileLevel: [] });
+    // The body is not a place to advertise the tool (user request).
+    expect(text).not.toMatch(/AI review/i);
+    expect(text).not.toMatch(/gpt|model|reviewed by/i);
+    expect(text).not.toMatch(/\d+ finding/i);
   });
 
-  it("singularizes a lone finding", () => {
-    expect(body({ inline: [f()], fileLevel: [], model: "m" })).toContain("1 finding (");
+  it("is non-empty, which GitHub requires for a COMMENT review", () => {
+    expect(renderReviewBody({ fileLevel: [] }).trim().length).toBeGreaterThan(0);
   });
 
-  it("names the model and that a human approved every comment", () => {
-    const text = body({ inline: [f()], fileLevel: [], model: "gpt-5.4-mini" });
-    expect(text).toContain("gpt-5.4-mini");
-    expect(text).toContain("approved by a human");
-  });
-
-  it("adds a General section for findings that could not be anchored", () => {
-    const text = body({
-      inline: [f()],
+  it("carries only the findings that could not be anchored", () => {
+    const text = renderReviewBody({
       fileLevel: [f({ id: "2", lineValid: false, title: "Unanchored thing" })],
-      model: "m",
     });
     expect(text).toContain("### General");
     expect(text).toContain("Unanchored thing");
@@ -104,20 +91,11 @@ describe("renderReviewBody", () => {
   });
 
   it("omits the General section when everything anchored", () => {
-    expect(body({ inline: [f()], fileLevel: [], model: "m" })).not.toContain("### General");
-  });
-
-  it("counts file-level notes in the total", () => {
-    const text = body({ inline: [f()], fileLevel: [f({ id: "2" })], model: "m" });
-    expect(text).toContain("2 findings");
+    expect(renderReviewBody({ fileLevel: [] })).not.toContain("### General");
   });
 
   it("indents a multi-line file-level body so the markdown list survives", () => {
-    const text = body({
-      inline: [],
-      fileLevel: [f({ body: "line one\nline two" })],
-      model: "m",
-    });
+    const text = renderReviewBody({ fileLevel: [f({ body: "line one\nline two" })] });
     expect(text).toContain("  line one\n  line two");
   });
 });

@@ -1,4 +1,3 @@
-import { config } from "../config";
 import { github } from "../github";
 import { getPullDetail } from "../pulls";
 import { anchorFinding } from "./anchor";
@@ -109,7 +108,7 @@ export async function postReview(request: PostRequest): Promise<PostResult> {
       // Pins the review to the commit the findings were computed against.
       commit_id: request.headSha,
       event: request.event,
-      body: renderReviewBody({ inline, fileLevel, model: config.reviewModel }),
+      body: renderReviewBody({ fileLevel }),
       comments: inline.map((finding) => ({
         path: finding.file,
         line: finding.line,

@@ -16,11 +16,13 @@ export default function FileGroup({
   patch,
   actions,
   onBulk,
+  locked = false,
 }: {
   group: Group;
   patch?: ParsedPatch;
   actions: FindingActions;
   onBulk: (file: string, action: "approve" | "dismiss") => void;
+  locked?: boolean;
 }) {
   const [open, setOpen] = useState(true);
   const directory = group.file.includes("/")
@@ -54,22 +56,24 @@ export default function FileGroup({
           ))}
         </span>
 
-        <span className="flex shrink-0 gap-1">
-          <button
-            type="button"
-            onClick={() => onBulk(group.file, "approve")}
-            className="rounded px-1.5 py-0.5 text-[11px] text-ink-subtle hover:bg-hover hover:text-ink"
-          >
-            approve all
-          </button>
-          <button
-            type="button"
-            onClick={() => onBulk(group.file, "dismiss")}
-            className="rounded px-1.5 py-0.5 text-[11px] text-ink-subtle hover:bg-hover hover:text-ink"
-          >
-            dismiss all
-          </button>
-        </span>
+        {!locked && (
+          <span className="flex shrink-0 gap-1">
+            <button
+              type="button"
+              onClick={() => onBulk(group.file, "approve")}
+              className="rounded px-1.5 py-0.5 text-[11px] text-ink-subtle hover:bg-hover hover:text-ink"
+            >
+              approve all
+            </button>
+            <button
+              type="button"
+              onClick={() => onBulk(group.file, "dismiss")}
+              className="rounded px-1.5 py-0.5 text-[11px] text-ink-subtle hover:bg-hover hover:text-ink"
+            >
+              dismiss all
+            </button>
+          </span>
+        )}
       </div>
 
       {open && (
@@ -80,6 +84,7 @@ export default function FileGroup({
               finding={finding}
               patch={patch}
               actions={actions}
+              locked={locked}
             />
           ))}
         </div>

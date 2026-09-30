@@ -28,11 +28,14 @@ export default function FindingCard({
   finding,
   patch,
   actions,
+  locked = false,
 }: {
   finding: Finding;
   /** The file's parsed patch, for the code shown above the comment. */
   patch?: ParsedPatch;
   actions: FindingActions;
+  /** After posting, findings are a record of what was sent — not editable. */
+  locked?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | undefined>();
@@ -42,12 +45,13 @@ export default function FindingCard({
   );
   const tone = TONE[finding.disposition];
   const approved = finding.status === "approved";
+  const editable = !locked;
 
   return (
     <article
       className={`px-4 py-4 not-last:border-b not-last:border-line ${
         approved ? "bg-accent/[0.04]" : ""
-      }`}
+      } ${locked && !approved ? "opacity-50" : ""}`}
     >
       <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-xs">
         <span className="flex items-center gap-1.5">
@@ -68,6 +72,15 @@ export default function FindingCard({
             edited
           </span>
         )}
+        {locked && (
+          <span
+            className={`rounded border px-1.5 py-px text-[10px] uppercase tracking-wider ${
+              approved ? "border-add/30 text-add" : "border-line-strong text-ink-subtle"
+            }`}
+          >
+            {approved ? "posted" : "not posted"}
+          </span>
+        )}
         <span className="ml-auto font-mono text-[11px] tabular-nums text-ink-subtle">
           {finding.lineValid ? `:${finding.line}` : "file-level"}
           {finding.snapped && (
@@ -76,7 +89,7 @@ export default function FindingCard({
         </span>
       </div>
 
-      {editing ? (
+      {editing && editable ? (
         <div className="mt-3">
           <FindingEditor
             finding={finding}
@@ -116,6 +129,7 @@ export default function FindingCard({
             </p>
           )}
 
+{editable && (
           <div className="mt-3 flex flex-wrap items-center gap-1.5">
             <button
               type="button"
@@ -154,6 +168,7 @@ export default function FindingCard({
               Delete
             </button>
           </div>
+          )}
         </>
       )}
     </article>

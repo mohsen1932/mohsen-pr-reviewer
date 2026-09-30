@@ -8,10 +8,12 @@ export default function DismissedDrawer({
   findings,
   setStatus,
   remove,
+  locked = false,
 }: {
   findings: Finding[];
   setStatus: (id: string, status: FindingStatus) => void;
   remove: (id: string) => void;
+  locked?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   if (findings.length === 0) return null;
@@ -45,20 +47,24 @@ export default function DismissedDrawer({
               <span className="shrink-0 font-mono text-[11px] text-ink-subtle">
                 {f.file.split("/").pop()}:{f.line}
               </span>
-              <button
-                type="button"
-                onClick={() => setStatus(f.id, "pending")}
-                className="shrink-0 rounded px-2 py-0.5 text-[11px] text-ink-subtle hover:bg-hover hover:text-ink"
-              >
-                restore
-              </button>
-              <button
-                type="button"
-                onClick={() => remove(f.id)}
-                className="shrink-0 rounded px-2 py-0.5 text-[11px] text-ink-subtle hover:bg-hover hover:text-del"
-              >
-                delete
-              </button>
+              {!locked && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setStatus(f.id, "pending")}
+                    className="shrink-0 rounded px-2 py-0.5 text-[11px] text-ink-subtle hover:bg-hover hover:text-ink"
+                  >
+                    restore
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => remove(f.id)}
+                    className="shrink-0 rounded px-2 py-0.5 text-[11px] text-ink-subtle hover:bg-hover hover:text-del"
+                  >
+                    delete
+                  </button>
+                </>
+              )}
             </li>
           ))}
         </ul>

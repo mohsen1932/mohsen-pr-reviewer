@@ -88,6 +88,15 @@ describe("posting", () => {
     expect(createReview.mock.calls[0][0].comments[0].body).toContain("**issue (blocking):**");
   });
 
+  it("posts a body with no summary or attribution", async () => {
+    const { postReview } = await load();
+    await postReview(request());
+    const body = createReview.mock.calls[0][0].body;
+    expect(body).not.toMatch(/AI review|reviewed by|gpt/i);
+    // GitHub requires a non-empty body on a COMMENT review.
+    expect(body.trim().length).toBeGreaterThan(0);
+  });
+
   it("returns the review url and what was posted", async () => {
     const { postReview } = await load();
     await expect(postReview(request())).resolves.toMatchObject({
