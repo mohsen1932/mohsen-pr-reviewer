@@ -31,7 +31,6 @@ the server is the user. There is no login, no session, and no deployment.
 | F5 | Findings grouped by file, classified blocking / non-blocking |
 | F6 | Findings are editable in the UI (body, disposition, category, line) |
 | F7 | Approve, dismiss, or delete each finding individually |
-| F7b | Add a finding of your own on any line of the diff |
 | F8 | Post approved findings to GitHub as inline PR comments |
 | F9 | Runs entirely on localhost; nothing is deployed or shared |
 
@@ -81,7 +80,7 @@ environment, calls GitHub and/or OpenAI, and returns.
   ├─ PR header + diff summary
   ├─ "Review this PR" ──▶ streams progress ──▶ findings grouped by file,
   │                                              tagged blocking / non-blocking
-  ├─ per finding: Approve · Dismiss · Edit · Delete  (+ add your own)
+  ├─ per finding: Approve · Dismiss · Edit · Delete
   └─ "Post N approved comments" ──▶ single GitHub review ──▶ link to the PR
 ```
 
@@ -561,7 +560,6 @@ const FindingSchema = z.object({
   status: z.enum(["pending", "approved", "dismissed"]),
   edited: z.boolean(),
   lineValid: z.boolean(),          // false → cannot be posted inline
-  origin: z.enum(["agent", "user"]),
 });
 ```
 
@@ -592,11 +590,12 @@ which forces it either to justify the claim or downgrade it.
   section; restorable. This is the reversible "no".
 - **Delete** — removes the finding from the session entirely. Offered because a
   dismissed list grows into noise, and triage wants a way to make things go
-  away. Destructive with no database behind it, so it shows an undo
-  toast and is the only finding action that does.
-- **Add** — a user can write a finding from scratch on any line of the diff; it
-  gets `origin: "user"` and is marked in the UI, so what the agent found stays
-  distinguishable from what you added.
+  away. Destructive with no database behind it, so it shows an undo toast and is
+  the only finding action that does.
+
+Every finding comes from the agent. There is no path for writing one by hand:
+the value of this tool is triaging what the agent found, and a hand-written
+finding is a GitHub comment the reviewer could have typed directly.
 
 ### 8.4 Grouping and ordering
 
@@ -668,7 +667,6 @@ components/
   FindingCard.tsx        disposition + category chips, diff snippet, body, actions
   DiffSnippet.tsx        the diff lines around a finding, target line marked
   FindingEditor.tsx      body, title, disposition, category, line
-  AddFinding.tsx         write your own finding against a diff line
   DismissedDrawer.tsx    collapsed list of dismissed findings, restorable
   PostBar.tsx            sticky: "Post 4 approved comments"
 ```
@@ -716,8 +714,6 @@ carrier of meaning — the word `blocking` is always present next to it.
 - **Delete** removes it, with a ~10s undo toast. It is the only destructive
   action, and the only one with an undo, because there is no database to recover
   from.
-- **Add** lets you write your own finding against any line of the diff; it is
-  marked `origin: "user"` so agent findings stay distinguishable.
 - Posting shows a confirm dialog with the comment count broken down by
   disposition and the target PR.
 - After a successful post, the panel locks and links to the review on GitHub.

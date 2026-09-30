@@ -45,7 +45,6 @@ export function acceptFinding(input: unknown, files: AnchorTarget[]): AcceptResu
     edited: false,
     lineValid: anchor.lineValid,
     snapped: anchor.snapped,
-    origin: "agent",
   };
 
   return { accepted: true, finding, note: anchor.note };

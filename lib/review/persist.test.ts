@@ -29,7 +29,6 @@ const finding = (over: Partial<Finding> = {}): Finding =>
     edited: false,
     lineValid: true,
     snapped: false,
-    origin: "agent",
     ...over,
   }) as Finding;
 
@@ -58,7 +57,7 @@ describe("round trip", () => {
       findings: [
         finding({ id: "a", status: "approved", edited: true, title: "I rewrote this" }),
         finding({ id: "b", status: "dismissed" }),
-        finding({ id: "c", origin: "user", disposition: "non-blocking" }),
+        finding({ id: "c", disposition: "non-blocking" }),
       ],
     };
 
@@ -72,7 +71,6 @@ describe("round trip", () => {
       title: "I rewrote this",
     });
     expect(restored.findings[1].status).toBe("dismissed");
-    expect(restored.findings[2].origin).toBe("user");
   });
 
   it("preserves the run summary", () => {

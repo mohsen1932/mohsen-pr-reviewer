@@ -37,7 +37,6 @@ const finding = (over: Partial<Finding> = {}): Finding =>
     edited: false,
     lineValid: true,
     snapped: false,
-    origin: "agent",
     ...over,
   }) as Finding;
 

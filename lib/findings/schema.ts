@@ -117,7 +117,6 @@ export type Finding = ReportedFinding & {
   lineValid: boolean;
   /** True when anchoring moved the line to the nearest changed line. */
   snapped: boolean;
-  origin: "agent" | "user";
 };
 
 /** Sort key for triage order: worst disposition, then kind, then position. */

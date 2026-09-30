@@ -30,7 +30,6 @@ describe("accepting a valid finding", () => {
       edited: false,
       lineValid: true,
       snapped: false,
-      origin: "agent",
     });
     expect(result.finding.id).toMatch(/^[0-9a-f-]{36}$/);
   });

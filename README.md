@@ -32,7 +32,7 @@ was not in the diff at all.
                                     │
                     findings stream in, grouped by file
                                     ▼
-        approve · dismiss · edit · delete · add your own
+             approve · dismiss · edit · delete
                                     ▼
               one GitHub review, with inline comments
 ```
@@ -99,7 +99,7 @@ Nothing is posted without you approving it, one finding at a time.
 │ │ [ Approve ] [ Dismiss ] [ Edit ]                          [ Delete ] │ │
 │ └──────────────────────────────────────────────────────────────────────┘ │
 │                                                                          │
-│ ▸ Dismissed  2                            + Add your own finding         │
+│ ▸ Dismissed  2                                                           │
 │                                                                          │
 │ ┌──────────────────────────────────────────────────────────────────────┐ │
 │ │ 1 finding approved   1B · 0N                   [ Post 1 comment ]    │ │

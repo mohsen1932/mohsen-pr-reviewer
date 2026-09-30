@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parsePatch } from "../diff";
-import { applyEdit, createUserFinding } from "./edit";
+import { applyEdit } from "./edit";
 import type { AnchorTarget } from "../review/anchor";
 import type { Finding } from "./schema";
 
@@ -22,7 +22,6 @@ const base = (over: Partial<Finding> = {}): Finding =>
     edited: false,
     lineValid: true,
     snapped: false,
-    origin: "agent",
     ...over,
   }) as Finding;
 
@@ -106,51 +105,5 @@ describe("applyEdit", () => {
     const result = applyEdit(base(), {}, FILES);
     if (!result.ok) throw new Error("expected ok");
     expect(result.finding).toMatchObject({ ...base(), edited: true });
-  });
-});
-
-describe("createUserFinding", () => {
-  const draft = {
-    file: "src/a.ts",
-    line: 2,
-    disposition: "non-blocking" as const,
-    category: "maintainability" as const,
-    title: "My own note",
-    body: "I think this is worth changing.",
-  };
-
-  it("creates an approved, user-marked finding", () => {
-    const result = createUserFinding(draft, FILES, "u1");
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.finding).toMatchObject({
-      id: "u1",
-      origin: "user",
-      status: "approved",
-      edited: false,
-    });
-  });
-
-  it("anchors like any other finding", () => {
-    const result = createUserFinding({ ...draft, line: 7 }, FILES, "u1");
-    if (!result.ok) throw new Error("expected ok");
-    expect(result.finding).toMatchObject({ line: 5, snapped: true });
-  });
-
-  it("refuses a file that is not in the pull request", () => {
-    const result = createUserFinding({ ...draft, file: "other.ts" }, FILES, "u1");
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.field).toBe("line");
-  });
-
-  it("holds a user-written blocking finding to the scenario rule", () => {
-    const result = createUserFinding({ ...draft, disposition: "blocking" }, FILES, "u1");
-    expect(result.ok).toBe(false);
-  });
-
-  it("defaults confidence to confirmed — a human wrote it", () => {
-    const result = createUserFinding(draft, FILES, "u1");
-    if (!result.ok) throw new Error("expected ok");
-    expect(result.finding.confidence).toBe("confirmed");
   });
 });

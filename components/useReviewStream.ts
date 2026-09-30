@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useReducer, useRef } from "react";
 import { reviewReducer, type BulkScope } from "@/lib/review/reducer";
-import { applyEdit, createUserFinding, type EditableFields } from "@/lib/findings/edit";
+import { applyEdit, type EditableFields } from "@/lib/findings/edit";
 import type { AnchorTarget } from "@/lib/review/anchor";
 import type { FindingStatus } from "@/lib/findings/schema";
 import { EventStreamParser } from "@/lib/review/stream";
@@ -16,11 +16,6 @@ import { loadState, saveState } from "@/lib/review/persist";
  */
 
 type Target = { owner: string; repo: string; number: number; headSha: string };
-
-/** Ids for user-authored findings; crypto.randomUUID is not in every browser. */
-function newId(): string {
-  return globalThis.crypto?.randomUUID?.() ?? `user-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
 
 export function useReviewStream(target: Target, files: AnchorTarget[]) {
   const [state, dispatch] = useReducer(reviewReducer, target, (t) =>
@@ -118,15 +113,5 @@ export function useReviewStream(target: Target, files: AnchorTarget[]) {
     [files],
   );
 
-  const add = useCallback(
-    (draft: EditableFields & { file: string }): string | undefined => {
-      const result = createUserFinding(draft, files, newId());
-      if (!result.ok) return result.message;
-      dispatch({ type: "add", finding: result.finding });
-      return undefined;
-    },
-    [files],
-  );
-
-  return { state, start, cancel, reset, setStatus, remove, undo, clearUndo, bulk, edit, add };
+  return { state, start, cancel, reset, setStatus, remove, undo, clearUndo, bulk, edit };
 }

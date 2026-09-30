@@ -176,15 +176,17 @@ refresh.
 - [x] **T5.5** `DismissedDrawer.tsx` — collapsed, restorable (§8.3, §10)
 - [x] **T5.6** Delete + ~10s undo toast — the only destructive action, the only
       undo (§8.3, §10)
-- [x] **T5.7** `AddFinding.tsx` — author a finding on any diff line,
-      `origin: "user"`, visibly marked (§8.2, §8.3)
+- [x] **T5.7** ~~Author your own finding~~ — **removed.** Every finding comes
+      from the agent; a hand-written one is a GitHub comment the reviewer could
+      have typed directly (§8.3)
 - [x] **T5.8** Bulk actions — approve all blocking; per-group approve/dismiss (§10)
 - [x] **T5.9** Superseded: nitpicks are no longer produced, so there is no
       disposition filter to build (BACKLOG D3)
 - [x] **T5.10** `lib/review/persist.ts` — round-trip verified for edits, triage
       status, and a hostile storage; keyed by head sha so a pushed-to PR starts clean
 
-- [x] **T5.11** Tests: every lifecycle transition incl. delete + undo; reducer extracted to `lib/` to be testable (§8.3, §16)
+- [x] **T5.11** Tests: every lifecycle transition incl. delete + undo; reducer
+      extracted to `lib/` to be testable (§8.3, §16)
 ---
 
 ## M6 — Post to GitHub

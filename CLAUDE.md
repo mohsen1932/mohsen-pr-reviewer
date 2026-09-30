@@ -90,6 +90,10 @@ find yourself removing one, stop and ask.
 - **A human edit is held to the same classification rules as the agent.**
   `applyEdit` re-validates against the schema, so promoting a finding to
   blocking still requires a failure scenario.
+- **Findings only ever come from the agent.** There is no add-your-own path and
+  no `origin` field; don't reintroduce either. Triaging what the agent found is
+  the product — a hand-written finding is a comment the reviewer could type
+  into GitHub directly.
 - Editing a line re-anchors; editing anything else does not. A finding the user
   deliberately placed must not move because they fixed a typo in the body.
 - **Posting is one `createReview` call**, never N comment calls. GitHub rejects

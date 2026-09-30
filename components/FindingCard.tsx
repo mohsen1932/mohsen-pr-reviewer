@@ -63,11 +63,6 @@ export default function FindingCard({
             unverified
           </span>
         )}
-        {finding.origin === "user" && (
-          <span className="rounded border border-accent/30 px-1.5 py-px text-[10px] uppercase tracking-wider text-accent">
-            yours
-          </span>
-        )}
         {finding.edited && (
           <span className="text-[11px] text-accent" title="You changed this finding">
             edited

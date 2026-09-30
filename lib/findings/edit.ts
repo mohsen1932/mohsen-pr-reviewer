@@ -76,32 +76,3 @@ export function applyEdit(
     },
   };
 }
-
-/** A finding the user wrote themselves, anchored like any other. */
-export function createUserFinding(
-  draft: EditableFields & { file: string; confidence?: Finding["confidence"] },
-  files: AnchorTarget[],
-  id: string,
-): EditResult {
-  const base: Finding = {
-    ...draft,
-    confidence: draft.confidence ?? "confirmed",
-    id,
-    status: "approved",
-    edited: false,
-    lineValid: true,
-    snapped: false,
-    origin: "user",
-  };
-
-  const anchor = anchorFinding({ file: draft.file, line: draft.line }, files);
-  if (!anchor.ok) return { ok: false, message: anchor.message, field: "line" };
-
-  const result = applyEdit(
-    { ...base, line: anchor.line, lineValid: anchor.lineValid, snapped: anchor.snapped },
-    {},
-    files,
-  );
-  // A finding the user just wrote is not an "edit" of anything.
-  return result.ok ? { ok: true, finding: { ...result.finding, edited: false }, note: anchor.note } : result;
-}

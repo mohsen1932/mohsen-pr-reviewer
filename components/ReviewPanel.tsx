@@ -5,7 +5,6 @@ import { countByDisposition, groupByFile } from "@/lib/findings/group";
 import { dismissedFindings, visibleFindings } from "@/lib/review/reducer";
 import type { AnchorTarget } from "@/lib/review/anchor";
 import { useCallback } from "react";
-import AddFinding from "./AddFinding";
 import DismissedDrawer from "./DismissedDrawer";
 import FileGroup from "./FileGroup";
 import PostBar, { type PostFailure, type PostOutcome } from "./PostBar";
@@ -189,10 +188,6 @@ export default function ReviewPanel({
             remove={review.remove}
           />
         </>
-      )}
-
-      {state.status !== "idle" && !running && (
-        <AddFinding files={files.map((f) => f.filename)} onAdd={review.add} />
       )}
 
       {state.status === "done" && !hasFindings && (

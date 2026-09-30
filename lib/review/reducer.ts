@@ -53,7 +53,6 @@ export type ReviewAction =
   | { type: "event"; event: ReviewEvent }
   | { type: "setStatus"; id: string; status: FindingStatus }
   | { type: "replace"; finding: Finding }
-  | { type: "add"; finding: Finding }
   | { type: "delete"; id: string }
   | { type: "bulk"; scope: BulkScope; action: "approve" | "dismiss" | "delete" }
   | { type: "undo" }
@@ -99,9 +98,6 @@ export function reviewReducer(state: ReviewState, action: ReviewAction): ReviewS
 
     case "replace":
       return mapFindings(state, (f) => (f.id === action.finding.id ? action.finding : f));
-
-    case "add":
-      return { ...state, findings: [...state.findings, action.finding] };
 
     case "delete": {
       const removed = state.findings.filter((f) => f.id === action.id);

@@ -21,7 +21,6 @@ const finding = (over: Partial<Finding> = {}): Finding =>
     edited: false,
     lineValid: true,
     snapped: false,
-    origin: "agent",
     ...over,
   }) as Finding;
 
@@ -204,12 +203,7 @@ describe("triage", () => {
     expect(after.findings[0]).toMatchObject({ title: "new", edited: true });
   });
 
-  it("adds a user-authored finding", () => {
-    const state = withFindings(finding({ id: "a" }));
-    const mine = finding({ id: "mine", origin: "user" });
-    const after = reviewReducer(state, { type: "add", finding: mine });
-    expect(after.findings.map((f) => f.id)).toEqual(["a", "mine"]);
-  });
+
 });
 
 describe("delete and undo", () => {
