@@ -1,0 +1,76 @@
+# Local PR Reviewer
+
+An AI pull-request reviewer that runs on localhost. Sign-in-less, single-user,
+no database. Reviews run the Claude Code harness (Agent SDK) against a real
+checkout of the PR's repo; findings are triaged by a human and posted back to
+GitHub as one review with inline comments.
+
+**Status: design only. No code exists yet.** Start at TASKS.md M1.
+
+## Where things are decided
+
+Read these before proposing anything structural — the decisions in them are made,
+with reasons, and re-litigating them wastes a turn:
+
+| File | Holds |
+|---|---|
+| `SPEC.md` | Architecture and behavior. The source of truth. |
+| `TASKS.md` | The implementation checklist, M1–M8, each task citing a `§`. |
+| `BACKLOG.md` | Decisions with their rationale (`D1`–`D5`), deferred ideas, and an explicit "ruled out" list. |
+
+If a change contradicts one of these, say so and update the doc in the same
+change. Don't silently diverge.
+
+## Invariants — do not break these
+
+These are security-critical and easy to "helpfully" undo while refactoring.
+Every one has a comment at its call site; if you find yourself removing one,
+stop and ask.
+
+1. **`settingSources: []`** in the Agent SDK query. `cwd` is a checkout of
+   someone else's repository. With `'project'`, the SDK would load that repo's
+   `.claude/` — and a skill there can run shell commands via `` !`cmd` `` before
+   Claude reads it. This is the difference between prompt injection and remote
+   code execution. (SPEC.md §7.5, §12)
+2. **The agent never gets `Bash`, `Write`, `Edit`, `WebFetch`, or `WebSearch`.**
+   Availability is `Read`, `Grep`, `Glob`, `Skill`. Git access goes through
+   fixed-argument custom MCP tools, never a shell — scoped `Bash(git log:*)`
+   rules were considered and rejected as too easy to slip past. (§7.4)
+3. **Nothing in a checkout is ever executed.** No install, no build, no test run.
+   The repo is read, never run. (§12)
+4. **No credential reaches a client component prop, a JSON response, or a log
+   line.** Error paths must scrub: an Anthropic 401 renders as "invalid key",
+   never by echoing the request. (§12)
+5. **The GitHub token never lands in `.git/config`.** Authenticate clones with a
+   per-invocation `http.extraHeader`, never `https://token@github.com/...`. (§7.2)
+6. **Nothing writes to a repository** except the single `createReview` call. (§12)
+7. **Findings render as sanitized markdown** — no raw HTML, no `javascript:`.
+   Bodies derive from repo content an attacker can influence by opening a PR. (§12)
+
+## Easy things to get wrong
+
+- The LLM dependency is **`@anthropic-ai/claude-agent-sdk`**, not
+  `@anthropic-ai/sdk`. This app drives the Claude Code harness, not the Messages
+  API. A diff-only Messages API implementation is the documented fallback
+  (BACKLOG D1), not the current design.
+- Default model is **`claude-sonnet-5`**, overridable via `REVIEW_MODEL`.
+- **Node 20+.** The machine has 18.20.3, which Next 15 accepts and Next 16 does
+  not.
+- `git` must be on `PATH` at **≥ 2.19** — the clone uses `--filter=blob:none`.
+  A `--depth` shallow clone would break `git blame`, which is half the reason for
+  cloning at all.
+- **Two sources of repo data, kept separate.** The GitHub API supplies what the
+  PR changed (patches, and therefore line anchoring). The checkout is only what
+  the agent explores. Never anchor a finding against the checkout. (§3, §8.5)
+- The app's own review skill lives in **`lib/review/skills/`**, deliberately not
+  `.claude/skills/`, so it is never confused with configuration for Claude Code
+  sessions in this repo.
+
+## Conventions
+
+- One Zod schema per concept, shared by the MCP tool, the API route, and the UI.
+  Don't define a parallel TypeScript interface for something Zod already types.
+- Findings carry two axes — `disposition` (blocking / non-blocking / nitpick) and
+  `category`. They are independent; don't collapse them into a severity scale.
+- `.env` and `.cache/` are gitignored and must stay that way. `.cache/repos/`
+  holds private source in plaintext.
