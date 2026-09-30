@@ -75,7 +75,33 @@ export type CheckoutRequest = {
  * `git log` and `git blame` useless, and those are most of the reason for
  * having a checkout at all.
  */
+/**
+ * A cache directory can be left broken by a killed clone or a full disk. One
+ * silent re-clone is worth it; a second failure is a real problem and is
+ * reported rather than retried forever.
+ */
 export async function prepareCheckout(request: CheckoutRequest): Promise<string> {
+  try {
+    return await attemptCheckout(request);
+  } catch (error) {
+    if (!isRecoverable(error)) throw error;
+    request.onProgress?.("rebuilding-cache", "the cached clone was unusable");
+    await clearCheckout(request.owner, request.repo);
+    return attemptCheckout(request);
+  }
+}
+
+/** Corruption looks like git failing to read its own object store or index. */
+function isRecoverable(error: unknown): boolean {
+  if (!(error instanceof CheckoutError)) return false;
+  // A size refusal or a bad sha is the caller's problem, not the cache's.
+  if (error.step === "size" || error.step === "validate" || error.step === "confine") return false;
+  return /not a git repository|corrupt|bad object|unable to read|index file|broken|loose object|did not match/i.test(
+    error.message,
+  );
+}
+
+async function attemptCheckout(request: CheckoutRequest): Promise<string> {
   const { owner, repo, headSha, sizeKb, onProgress = () => {} } = request;
   const pullNumber = parsePullNumber(request.pullNumber);
 

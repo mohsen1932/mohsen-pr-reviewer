@@ -7,6 +7,8 @@ import { getAuthenticatedUser } from "@/lib/github";
 import { listOpenPulls } from "@/lib/pulls";
 import { scrubError } from "@/lib/scrub";
 import { InvalidInputError } from "@/lib/validate";
+import SetupNotice from "@/components/SetupNotice";
+import { runStartupChecks } from "@/lib/startup";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +25,14 @@ export default async function PullsPage({
     pulls = await listOpenPulls(owner, repo);
   } catch (error) {
     if (error instanceof InvalidInputError) notFound();
+    // A 401 means the token died since boot; the setup screen says what to do.
+    if ((error as { status?: number }).status === 401) {
+      return (
+        <AppShell>
+          <SetupNotice report={await runStartupChecks()} />
+        </AppShell>
+      );
+    }
     return (
       <AppShell user={user}>
         <Link href="/repos" className="text-[13px] text-ink-subtle hover:text-ink">

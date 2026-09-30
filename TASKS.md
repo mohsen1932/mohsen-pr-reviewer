@@ -218,19 +218,21 @@ awaiting a decision.
 
 ## M7 — Polish
 
+**✅ Complete.** Cache control verified live: 40.1 MB reported, cleared, gone.
+
 **Done when:** every row of the §11 failure table has a real UI state.
 
-- [ ] **T7.1** GitHub 401 → setup screen (§11)
-- [ ] **T7.2** GitHub 403 rate-limited → show `x-ratelimit-reset` time (§11)
-- [ ] **T7.3** GitHub 403/404 on a repo → "no access — check the token covers
+- [x] **T7.1** GitHub 401 → setup screen (§11)
+- [x] **T7.2** GitHub 403 rate-limited → show `x-ratelimit-reset` time (§11)
+- [x] **T7.3** GitHub 403/404 on a repo → "no access — check the token covers
       this repo" (§11)
-- [ ] **T7.4** `git` missing / clone / fetch failures named by step (§11)
-- [ ] **T7.5** Corrupt cache → delete and re-clone once, then report (§11)
-- [ ] **T7.6** `error_max_turns` → partial review banner, keep findings (§11)
-- [ ] **T7.7** Cost display — `total_cost_usd`, `num_turns`, `usage` on `done` (§11)
-- [ ] **T7.8** "Clear cache" action; show `.cache/repos/` size ⚠️ (§12)
-- [ ] **T7.9** Empty and loading states for every list
-- [ ] **T7.10** Cancel-review button wired to `q.interrupt()` (§11)
+- [x] **T7.4** `git` missing / clone / fetch failures named by step (§11)
+- [x] **T7.5** Corrupt cache → delete and re-clone once, then report (§11)
+- [x] **T7.6** Turn limit / timeout / cancel → partial review banner, findings kept (§11)
+- [x] **T7.7** Cost display — `total_cost_usd`, `num_turns`, `usage` on `done` (§11)
+- [x] **T7.8** "Clear cache" action; show `.cache/repos/` size ⚠️ (§12)
+- [x] **T7.9** Empty and loading states for every list
+- [x] **T7.10** Cancel-review button; aborts the loop and the server run (§11)
 
 ---
 

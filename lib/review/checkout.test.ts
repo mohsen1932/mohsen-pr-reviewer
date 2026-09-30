@@ -224,3 +224,55 @@ describe("cacheSizeBytes", () => {
     await expect(cacheSizeBytes()).resolves.toBe(200);
   });
 });
+
+describe("recovering a corrupt cache", () => {
+  const CORRUPT = "fatal: not a git repository (or any of the parent directories)";
+
+  it("re-clones once when the cached clone is unusable", async () => {
+    fsMock.access.mockResolvedValue(undefined); // a clone appears to exist
+    const { GitError } = await vi.importActual<typeof import("./git")>("./git");
+    let call = 0;
+    gitMock.mockImplementation(async () => {
+      call++;
+      // Fail the first fetch, then succeed once the cache is rebuilt.
+      if (call === 1) throw new GitError(CORRUPT, "fetch");
+      return "";
+    });
+
+    const { prepareCheckout } = await load();
+    const phases: string[] = [];
+    await expect(
+      prepareCheckout(req({ onProgress: (p: string) => phases.push(p) })),
+    ).resolves.toBeTruthy();
+
+    expect(phases).toContain("rebuilding-cache");
+    expect(fsMock.rm).toHaveBeenCalled();
+  });
+
+  it("gives up after one rebuild rather than looping", async () => {
+    fsMock.access.mockResolvedValue(undefined);
+    const { GitError } = await vi.importActual<typeof import("./git")>("./git");
+    gitMock.mockRejectedValue(new GitError(CORRUPT, "fetch"));
+
+    const { prepareCheckout, CheckoutError } = await load();
+    await expect(prepareCheckout(req())).rejects.toBeInstanceOf(CheckoutError);
+  });
+
+  it("does not rebuild for a failure the cache cannot cause", async () => {
+    const { GitError } = await vi.importActual<typeof import("./git")>("./git");
+    gitMock.mockRejectedValue(new GitError("Repository not found", "clone"));
+
+    const { prepareCheckout } = await load();
+    await expect(prepareCheckout(req())).rejects.toThrow(/Repository not found/);
+    // A missing remote is not corruption; re-cloning would just fail again.
+    expect(fsMock.rm).not.toHaveBeenCalledWith(expect.anything(), expect.anything());
+  });
+
+  it("does not rebuild when the repository is simply too large", async () => {
+    const { prepareCheckout, MAX_REPO_SIZE_KB } = await load();
+    await expect(
+      prepareCheckout(req({ sizeKb: MAX_REPO_SIZE_KB + 1 })),
+    ).rejects.toThrow(/over the 2 GB limit/);
+    expect(gitMock).not.toHaveBeenCalled();
+  });
+});

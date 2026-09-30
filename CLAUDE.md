@@ -5,9 +5,9 @@ no database. Reviews run an agent loop over the OpenAI API against a real checko
 PR's repo; findings are triaged by a human and posted back to GitHub as one
 review with inline comments.
 
-**Status: M6 code complete** — posting is built and tested, but has never run
-against a real pull request. 616 tests at 95.7% coverage. Next: a live post,
-then TASKS.md M7 (polish).
+**Status: M7 complete** — the whole flow works end to end, verified against a
+real pull request. 631 tests at 95.4% coverage. Only TASKS.md M8 (README) is
+left.
 
 ## Where things are decided
 

@@ -1,10 +1,12 @@
 import AppShell from "@/components/AppShell";
+import CacheControl from "@/components/CacheControl";
 import RepoList from "@/components/RepoList";
 import RepoUrlInput from "@/components/RepoUrlInput";
 import SetupNotice from "@/components/SetupNotice";
 import { Notice, PageTitle } from "@/components/ui";
 import { getAuthenticatedUser } from "@/lib/github";
 import { listRepos } from "@/lib/repos";
+import { cacheSizeBytes } from "@/lib/review/checkout";
 import { scrubError } from "@/lib/scrub";
 import { runStartupChecks } from "@/lib/startup";
 
@@ -21,9 +23,10 @@ export default async function ReposPage() {
   }
 
   const blocked = report.checks.filter((c) => !c.ok);
-  const [user, repos] = await Promise.all([
+  const [user, repos, cacheBytes] = await Promise.all([
     getAuthenticatedUser().catch(() => null),
     listRepos().catch((error: unknown) => scrubError(error)),
+    cacheSizeBytes().catch(() => 0),
   ]);
 
   return (
@@ -51,6 +54,8 @@ export default async function ReposPage() {
           <RepoList repos={repos} />
         )}
       </div>
+
+      <CacheControl initialBytes={cacheBytes} />
     </AppShell>
   );
 }

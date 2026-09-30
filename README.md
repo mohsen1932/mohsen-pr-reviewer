@@ -43,9 +43,9 @@ no credentials.
 
 ## Status
 
-**M6 of 8 code complete** — browse repos and PRs, run a review, triage the
-findings, and post the approved ones back to GitHub (616 tests, 95.7% coverage).
-Posting has not yet been exercised against a real pull request. Only polish and the README remain. See [TASKS.md].
+**M7 of 8 complete** — the full flow works: browse repos and PRs, run a review,
+triage the findings, and post the approved ones back to GitHub (631 tests, 95.4%
+coverage). Verified against a real pull request. Only the README remains. See [TASKS.md].
 
 ## Documentation
 
