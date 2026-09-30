@@ -58,20 +58,6 @@ export default function FindingEditor({
           </select>
         </label>
         <label className="col-span-1 text-[11px] text-ink-subtle">
-          Category
-          <select
-            value={draft.category}
-            onChange={(e) => set("category", e.target.value as Finding["category"])}
-            className={`${field} mt-1`}
-          >
-            {CATEGORIES.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="col-span-1 text-[11px] text-ink-subtle">
           Line
           <input
             type="number"
