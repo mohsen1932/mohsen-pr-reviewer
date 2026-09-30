@@ -1,9 +1,4 @@
-import {
-  compareFindings,
-  DISPOSITION_RANK,
-  type Disposition,
-  type Finding,
-} from "./schema";
+import { compareFindings, DISPOSITION_RANK, type Disposition, type Finding } from "./schema";
 
 /** Grouping and ordering for the review panel. SPEC.md §8.4. */
 
@@ -16,7 +11,7 @@ export type FileGroup = {
 };
 
 export function emptyCounts(): Record<Disposition, number> {
-  return { blocking: 0, "non-blocking": 0, nitpick: 0 };
+  return { blocking: 0, "non-blocking": 0 };
 }
 
 export function countByDisposition(findings: Finding[]): Record<Disposition, number> {
@@ -57,11 +52,4 @@ export function groupByFile(findings: Finding[]): FileGroup[] {
   );
 }
 
-/** Hide-nitpicks is the filter people actually use, so it gets its own path. */
-export function filterFindings(
-  findings: Finding[],
-  options: { hideNitpicks?: boolean } = {},
-): Finding[] {
-  if (!options.hideNitpicks) return findings;
-  return findings.filter((f) => f.disposition !== "nitpick");
-}
+

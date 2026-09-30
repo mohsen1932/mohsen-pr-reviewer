@@ -10,7 +10,6 @@ import FindingEditor from "./FindingEditor";
 const TONE: Record<Disposition, { dot: string; text: string }> = {
   blocking: { dot: "bg-del", text: "text-del" },
   "non-blocking": { dot: "bg-warn", text: "text-warn" },
-  nitpick: { dot: "bg-ink-subtle", text: "text-ink-subtle" },
 };
 
 export type FindingActions = {

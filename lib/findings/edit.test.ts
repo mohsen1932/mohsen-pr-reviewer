@@ -50,10 +50,9 @@ describe("applyEdit", () => {
     expect(result.field).toBe("failureScenario");
   });
 
-  it("rejects style promoted above nitpick", () => {
-    const result = applyEdit(base(), { category: "style", disposition: "non-blocking" }, FILES);
+  it("refuses to downgrade a finding to a nitpick, which no longer exists", () => {
+    const result = applyEdit(base(), { disposition: "nitpick" as never }, FILES);
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.message).toContain("nitpick by definition");
   });
 
   it("rejects an empty title", () => {

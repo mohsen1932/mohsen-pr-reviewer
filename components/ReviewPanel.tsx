@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { countByDisposition, filterFindings, groupByFile } from "@/lib/findings/group";
+import { countByDisposition, groupByFile } from "@/lib/findings/group";
 import { dismissedFindings, visibleFindings } from "@/lib/review/reducer";
 import type { AnchorTarget } from "@/lib/review/anchor";
 import { useCallback } from "react";
@@ -37,7 +37,6 @@ export default function ReviewPanel({
 }: Props) {
   const review = useReviewStream({ owner, repo, number, headSha }, files);
   const { state } = review;
-  const [hideNitpicks, setHideNitpicks] = useState(false);
   const [posting, setPosting] = useState(false);
   const [outcome, setOutcome] = useState<PostOutcome | undefined>();
   const [failure, setFailure] = useState<PostFailure | undefined>();
@@ -45,10 +44,7 @@ export default function ReviewPanel({
   const active = useMemo(() => visibleFindings(state), [state]);
   const dismissed = useMemo(() => dismissedFindings(state), [state]);
   const counts = useMemo(() => countByDisposition(active), [active]);
-  const groups = useMemo(
-    () => groupByFile(filterFindings(active, { hideNitpicks })),
-    [active, hideNitpicks],
-  );
+  const groups = useMemo(() => groupByFile(active), [active]);
 
   const running = state.status === "running";
   const hasFindings = state.findings.length > 0;
@@ -136,17 +132,6 @@ export default function ReviewPanel({
           </span>
         ) : null}
 
-        {hasFindings && (
-          <label className="ml-auto flex shrink-0 cursor-pointer select-none items-center gap-2 text-[13px] text-ink-muted">
-            <input
-              type="checkbox"
-              checked={hideNitpicks}
-              onChange={(e) => setHideNitpicks(e.target.checked)}
-              className="accent-accent"
-            />
-            Hide nitpicks ({counts.nitpick})
-          </label>
-        )}
       </div>
 
       {state.error && (
@@ -165,8 +150,7 @@ export default function ReviewPanel({
           <div className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-2">
             <h2 className="text-sm font-medium text-ink">Findings</h2>
             <span className="font-mono text-xs tabular-nums text-ink-subtle">
-              {counts.blocking} blocking · {counts["non-blocking"]} non-blocking ·{" "}
-              {counts.nitpick} nitpick
+              {counts.blocking} blocking · {counts["non-blocking"]} non-blocking
             </span>
 
             <span className="ml-auto flex flex-wrap gap-1.5">
@@ -180,16 +164,6 @@ export default function ReviewPanel({
               >
                 Approve all blocking
               </button>
-              <button
-                type="button"
-                disabled={counts.nitpick === 0}
-                onClick={() =>
-                  review.bulk({ kind: "disposition", disposition: "nitpick" }, "delete")
-                }
-                className="rounded-md border border-line-strong px-2.5 py-1 text-[12px] text-ink-subtle transition-colors hover:border-del/40 hover:text-del disabled:opacity-30"
-              >
-                Delete all nitpicks
-              </button>
             </span>
           </div>
 
@@ -202,11 +176,6 @@ export default function ReviewPanel({
                 onBulk={(file, action) => review.bulk({ kind: "file", file }, action)}
               />
             ))}
-            {groups.length === 0 && active.length > 0 && (
-              <p className="rounded-lg border border-line bg-surface px-4 py-10 text-center text-[13px] text-ink-subtle">
-                All {counts.nitpick} remaining findings are nitpicks, and they are hidden.
-              </p>
-            )}
           </div>
 
           <DismissedDrawer

@@ -4,11 +4,10 @@ import { useState } from "react";
 import type { FileGroup as Group } from "@/lib/findings/group";
 import FindingCard, { type FindingActions } from "./FindingCard";
 
-const ORDER = ["blocking", "non-blocking", "nitpick"] as const;
+const ORDER = ["blocking", "non-blocking"] as const;
 const COUNT_TONE = {
   blocking: "text-del",
   "non-blocking": "text-warn",
-  nitpick: "text-ink-subtle",
 } as const;
 
 export default function FileGroup({

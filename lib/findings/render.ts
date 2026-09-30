@@ -11,13 +11,10 @@ import type { Finding } from "./schema";
 /** The label half of the prefix. Security earns its own, since it reads differently. */
 function label(finding: Finding): string {
   if (finding.category === "security") return "security";
-  if (finding.disposition === "nitpick") return "nitpick";
   return finding.disposition === "blocking" ? "issue" : "suggestion";
 }
 
 export function commentPrefix(finding: Finding): string {
-  // A nitpick carries no decoration: "nitpick (non-blocking)" is noise.
-  if (finding.disposition === "nitpick") return `**${label(finding)}:**`;
   return `**${label(finding)} (${finding.disposition}):**`;
 }
 
@@ -61,7 +58,6 @@ export function renderReviewBody({ inline, fileLevel, model }: ReviewBodyInput):
   const summary = [
     counts.blocking > 0 ? `${counts.blocking} blocking` : null,
     counts["non-blocking"] > 0 ? `${counts["non-blocking"]} non-blocking` : null,
-    counts.nitpick > 0 ? `${counts.nitpick} nitpick` : null,
   ].filter(Boolean);
 
   parts.push(

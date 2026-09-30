@@ -113,8 +113,11 @@ find yourself removing one, stop and ask.
 
 - One Zod schema per concept, shared by the MCP tool, the API route, and the UI.
   Don't define a parallel TypeScript interface for something Zod already types.
-- Findings carry two axes — `disposition` (blocking / non-blocking / nitpick) and
+- Findings carry two axes — `disposition` (blocking / non-blocking) and
   `category`. They are independent; don't collapse them into a severity scale.
+- **There is no nitpick disposition, and no `style` category.** Preferences are
+  not reported at all, rather than reported and filtered. Don't reinstate either
+  one to give a low-priority observation somewhere to go — see BACKLOG D3.
 - `.env` and `.cache/` are gitignored and must stay that way. `.cache/repos/`
   holds private source in plaintext.
 

@@ -123,8 +123,8 @@ rubric itself carried over unchanged.
 
 - [x] **T3b.1** `lib/findings/schema.ts` — `Disposition`, `Category`,
       `FindingSchema` (§8.1, §8.2)
-- [x] **T3b.2** Classification constraints — `style` ⇒ `nitpick`; `security` ⇏
-      `nitpick`; `blocking` ⇒ `failureScenario` required (§8.1, §8.2)
+- [x] **T3b.2** Classification constraints — `blocking` ⇒ `failureScenario`
+      required; `nitpick` and `style` rejected outright (§8.1, §8.2)
 - [x] **T3b.3** `report_finding` tool — validate, return an error result with a
       usable message so the agent fixes or downgrades (§7.4)
 - [x] **T3b.4** `lib/review/anchor.ts` — file-in-PR check, hunk range check,
@@ -178,9 +178,9 @@ refresh.
       undo (§8.3, §10)
 - [x] **T5.7** `AddFinding.tsx` — author a finding on any diff line,
       `origin: "user"`, visibly marked (§8.2, §8.3)
-- [x] **T5.8** Bulk actions — approve all blocking; per-group approve/dismiss;
-      delete all nitpicks (§10)
-- [x] **T5.9** `DispositionFilter.tsx` + "hide nitpicks" toggle (§8.4, §10)
+- [x] **T5.8** Bulk actions — approve all blocking; per-group approve/dismiss (§10)
+- [x] **T5.9** Superseded: nitpicks are no longer produced, so there is no
+      disposition filter to build (BACKLOG D3)
 - [x] **T5.10** `lib/review/persist.ts` — round-trip verified for edits, triage
       status, and a hostile storage; keyed by head sha so a pushed-to PR starts clean
 

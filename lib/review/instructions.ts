@@ -32,17 +32,26 @@ WHAT TO REPORT
   deserialization.
 - A smaller number of reuse, simplification and efficiency cleanups.
 
-WHAT NOT TO REPORT
-- Style or formatting a linter would catch. Praise. Restating what the diff
-  plainly does. Speculative "you might consider" remarks with no concrete
-  problem behind them.
+WHAT NOT TO REPORT — NITPICKS ARE OUT OF SCOPE
+- Do not report preferences. Naming, phrasing, formatting, import order, a
+  different-but-equivalent way to write the same thing: none of these belong in
+  the output, at any disposition.
+- Also out: style or formatting a linter would catch, praise, restating what the
+  diff plainly does, and speculative "you might consider" remarks with no
+  concrete problem behind them.
+- There is no nitpick disposition. If the only honest label for something is
+  "preference", the correct action is to say nothing about it — NOT to relabel it
+  non-blocking. Upgrading a preference to make it reportable is the single
+  failure mode this rule exists to prevent.
 
 CLASSIFY EACH FINDING
 - blocking      must be fixed before merge; requires a concrete failure
                 scenario — inputs or state leading to a wrong result. If you
                 cannot write one, it is not blocking.
-- non-blocking  a real problem with bounded impact, or a good follow-up.
-- nitpick       preference only. Never a correctness claim.
+- non-blocking  a real problem with bounded impact, or a good follow-up. It must
+                still be a *problem*: something that is wrong, missing, or will
+                cost someone later. Not merely something you would have written
+                differently.
 
 CONFIDENCE
 - confirmed: you traced the code and are certain.
@@ -54,7 +63,8 @@ Four real findings beat twenty where sixteen are noise. A reviewer who stops
 trusting the output ignores all of it.
 
 Reporting nothing is a good outcome when the change is correct. Do not
-manufacture a finding to look useful.
+manufacture a finding to look useful, and do not pad the output with preferences
+to avoid an empty result.
 
 SCALE THE INVESTIGATION TO THE CHANGE
 - A small diff deserves a small review. Read the changed lines, the function

@@ -92,14 +92,16 @@ describe("rejections are actionable", () => {
     expect(result.message).toContain("failureScenario");
   });
 
-  it("lists every problem at once", () => {
-    const result = acceptFinding(
-      input({ category: "style", disposition: "blocking" }),
-      FILES,
-    );
+  it("lists every field problem at once", () => {
+    const result = acceptFinding(input({ title: "", category: "vibes" }), FILES);
     if (result.accepted) throw new Error("expected rejection");
-    expect(result.message).toContain("failureScenario");
-    expect(result.message).toContain("nitpick by definition");
+    expect(result.message).toContain("title");
+    expect(result.message).toContain("category");
+  });
+
+  it("refuses a nitpick outright — there is no such disposition", () => {
+    const result = acceptFinding(input({ disposition: "nitpick" }), FILES);
+    expect(result.accepted).toBe(false);
   });
 
   it.each([

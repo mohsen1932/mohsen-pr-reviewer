@@ -28,7 +28,7 @@ the server is the user. There is no login, no session, and no deployment.
 | F2b | **Private repos are first-class** — owned, collaborator, and org-owned |
 | F3 | List open PRs for the selected repo |
 | F4 | Select a PR and trigger an AI review |
-| F5 | Findings grouped by file, classified blocking / non-blocking / nitpick |
+| F5 | Findings grouped by file, classified blocking / non-blocking |
 | F6 | Findings are editable in the UI (body, disposition, category, line) |
 | F7 | Approve, dismiss, or delete each finding individually |
 | F7b | Add a finding of your own on any line of the diff |
@@ -80,7 +80,7 @@ environment, calls GitHub and/or OpenAI, and returns.
 /repos/:owner/:repo/pulls/:number
   ├─ PR header + diff summary
   ├─ "Review this PR" ──▶ streams progress ──▶ findings grouped by file,
-  │                                              tagged blocking / non-blocking / nitpick
+  │                                              tagged blocking / non-blocking
   ├─ per finding: Approve · Dismiss · Edit · Delete  (+ add your own)
   └─ "Post N approved comments" ──▶ single GitHub review ──▶ link to the PR
 ```
@@ -314,7 +314,6 @@ in ~8k requests.
 |---|---|
 | `blocking` | `**issue (blocking):**`, or `**security (blocking):**` for that category |
 | `non-blocking` | `**suggestion (non-blocking):**` |
-| `nitpick` | `**nitpick:**` |
 
 The review body carries a summary table of counts by disposition, plus any
 findings that could not be anchored inline (§8.5).
@@ -511,7 +510,13 @@ grouping, sorting, bulk actions, and how the comment is posted.
 |---|---|---|
 | `blocking` | Must be fixed before merge | A concrete failure scenario, or a security hole. If you cannot write inputs → wrong output, it is not blocking. |
 | `non-blocking` | Should be addressed, but merge need not wait | Real problem, bounded impact. Also the right label for "fix in a follow-up". |
-| `nitpick` | Author's discretion; purely a preference | Naming, phrasing, micro-simplification. Never a correctness claim. |
+
+**There is no third value.** A nitpick is a preference, and a preference is not
+worth a comment on someone's pull request. Rather than reporting them and
+filtering them out, the vocabulary omits them: a model cannot report what it
+cannot name. The rubric (§7.5) states the matching rule — if the only honest
+label is "preference", say nothing, and do **not** relabel it `non-blocking` to
+make it reportable. That relabelling is the failure mode this design prevents.
 
 **Category — what kind of issue it is.** Secondary: shown as a chip, used for
 sorting within a disposition and for filtering.
@@ -526,17 +531,17 @@ sorting within a disposition and for filtering.
 | `docs` | Stale comment, wrong docstring, missing public API doc |
 | `style` | Formatting and convention a linter does not already catch |
 
-`style` findings are `nitpick` by definition — the schema rejects any other
-disposition for them. `security` findings may not be `nitpick`.
+`style` was removed along with `nitpick`: by the definition above it only ever
+meant "preference", so it has no valid disposition left.
 
 The pair renders as a [Conventional Comments](https://conventionalcomments.org/)
 prefix when posted (§6), so the output matches a convention reviewers already
-read: `**issue (blocking):**`, `**suggestion (non-blocking):**`, `**nitpick:**`.
+read: `**issue (blocking):**`, `**suggestion (non-blocking):**`.
 
 ### 8.2 Finding
 
 ```ts
-const Disposition = z.enum(["blocking", "non-blocking", "nitpick"]);
+const Disposition = z.enum(["blocking", "non-blocking"]);
 const Category = z.enum(["correctness", "security", "performance",
                          "maintainability", "testing", "docs", "style"]);
 
@@ -586,8 +591,8 @@ which forces it either to justify the claim or downgrade it.
 - **Dismiss** — not posting this, but keep it. Collapses into a "Dismissed"
   section; restorable. This is the reversible "no".
 - **Delete** — removes the finding from the session entirely. Offered because a
-  dismissed list of twenty nitpicks is noise, and triage wants a way to make
-  things go away. Destructive with no database behind it, so it shows an undo
+  dismissed list grows into noise, and triage wants a way to make things go
+  away. Destructive with no database behind it, so it shows an undo
   toast and is the only finding action that does.
 - **Add** — a user can write a finding from scratch on any line of the diff; it
   gets `origin: "user"` and is marked in the UI, so what the agent found stays
@@ -596,14 +601,13 @@ which forces it either to justify the claim or downgrade it.
 ### 8.4 Grouping and ordering
 
 Findings group by `file`. Within a file, order by disposition
-(`blocking` → `non-blocking` → `nitpick`), then by category priority
+(`blocking` → `non-blocking`), then by category priority
 (`security`, `correctness`, then the rest), then by line.
 
 File groups are ordered by their worst disposition, so the file with blocking
 findings is first. Each group header shows counts per disposition.
 
-A disposition filter sits above the list — hide nitpicks is the one people will
-actually use, so it gets a dedicated toggle.
+No disposition filter: with nitpicks gone there is nothing worth hiding.
 
 ### 8.5 Line validation
 
@@ -660,7 +664,6 @@ components/
   RepoList.tsx           private/public badge, owner, pushed-at
   PrList.tsx
   ReviewPanel.tsx        orchestrates the SSE stream + reducer
-  DispositionFilter.tsx  counts per disposition + "hide nitpicks" toggle
   FileGroup.tsx          collapsible; header shows blocking/non-blocking/nit counts
   FindingCard.tsx        disposition + category chips, body, action row
   FindingEditor.tsx      body, title, disposition, category, line
@@ -696,8 +699,7 @@ carrier of meaning — the word `blocking` is always present next to it.
   review finishes.
 - Every finding starts `pending`. Post is enabled once ≥1 is `approved`.
 - **Bulk actions:** "approve all blocking" globally; per file group, approve /
-  dismiss all; and "delete all nitpicks", which is the one bulk delete offered
-  because it is the one people want.
+  dismiss all.
 - **Edit** opens the card in place with body, title, disposition, category, and
   line. Changing `line` re-anchors and shows an error if the new line is not in
   the diff. Sets `edited: true` with a visible marker.
@@ -1012,7 +1014,7 @@ both are tested, by extracting them into `lib/` rather than by testing React.
 | `lib/startup.ts` | Each check independently: version boundaries, rejection vs. network failure, and that a failing check never echoes a credential |
 | `lib/diff.ts` | Hunk parsing against real patches, including renames and new files |
 | `lib/review/anchor.ts` | In-hunk, snap-within-3, unsnappable → `lineValid: false`, file-not-in-PR → dropped (§8.5) |
-| `lib/findings/*` | Schema constraints (`style` ⇒ `nitpick`, `blocking` ⇒ `failureScenario`), Conventional Comments rendering (§8.1, §6) |
+| `lib/findings/*` | Schema constraints (`blocking` ⇒ `failureScenario`; `nitpick` and `style` rejected outright), Conventional Comments rendering (§8.1, §6) |
 | `lib/review/checkout.ts` | Path confinement, token never written to `.git/config` (§7.2, §12) |
 | `lib/review/paths.ts` | Traversal, absolute paths, sibling-prefix escapes, `.git/` refusal (§12) |
 | `lib/review/agent-tools.ts` | Every tool refuses an out-of-tree path; an undefined tool name is never dispatched |

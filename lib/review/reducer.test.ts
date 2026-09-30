@@ -256,8 +256,8 @@ describe("bulk actions", () => {
     run([
       { type: "start" },
       ev({ type: "finding", finding: finding({ id: "b1", disposition: "blocking", file: "a.ts" }) }),
-      ev({ type: "finding", finding: finding({ id: "n1", disposition: "nitpick", file: "a.ts" }) }),
-      ev({ type: "finding", finding: finding({ id: "n2", disposition: "nitpick", file: "b.ts" }) }),
+      ev({ type: "finding", finding: finding({ id: "n1", disposition: "non-blocking", file: "a.ts" }) }),
+      ev({ type: "finding", finding: finding({ id: "n2", disposition: "non-blocking", file: "b.ts" }) }),
     ]);
 
   it("approves every blocking finding", () => {
@@ -282,10 +282,10 @@ describe("bulk actions", () => {
     ]);
   });
 
-  it("deletes every nitpick, with one undo for the batch", () => {
+  it("deletes every finding of one disposition, with one undo for the batch", () => {
     const after = reviewReducer(state(), {
       type: "bulk",
-      scope: { kind: "disposition", disposition: "nitpick" },
+      scope: { kind: "disposition", disposition: "non-blocking" },
       action: "delete",
     });
     expect(after.findings.map((f) => f.id)).toEqual(["b1"]);
@@ -296,7 +296,7 @@ describe("bulk actions", () => {
   it("undo restores a whole batch", () => {
     const deleted = reviewReducer(state(), {
       type: "bulk",
-      scope: { kind: "disposition", disposition: "nitpick" },
+      scope: { kind: "disposition", disposition: "non-blocking" },
       action: "delete",
     });
     expect(reviewReducer(deleted, { type: "undo" }).findings).toHaveLength(3);

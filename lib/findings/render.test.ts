@@ -25,7 +25,6 @@ describe("commentPrefix", () => {
   it.each([
     ["blocking correctness", { disposition: "blocking" }, "**issue (blocking):**"],
     ["non-blocking", { disposition: "non-blocking" }, "**suggestion (non-blocking):**"],
-    ["nitpick", { disposition: "nitpick", category: "style" }, "**nitpick:**"],
   ])("renders %s as %s", (_label, over, expected) => {
     expect(commentPrefix(f(over as Partial<Finding>))).toBe(expected);
   });
@@ -37,8 +36,8 @@ describe("commentPrefix", () => {
     );
   });
 
-  it("does not decorate a nitpick — 'nitpick (non-blocking)' is noise", () => {
-    expect(commentPrefix(f({ disposition: "nitpick" }))).not.toContain("(");
+  it("always carries the disposition, since there are only two", () => {
+    expect(commentPrefix(f({ disposition: "non-blocking" }))).toContain("(non-blocking)");
   });
 });
 
@@ -75,13 +74,13 @@ describe("renderReviewBody", () => {
 
   it("summarizes counts by disposition", () => {
     const text = body({
-      inline: [f(), f({ id: "2", disposition: "nitpick" })],
+      inline: [f(), f({ id: "2", disposition: "non-blocking", failureScenario: undefined })],
       fileLevel: [],
       model: "gpt-5.4-mini",
     });
     expect(text).toContain("2 findings");
     expect(text).toContain("1 blocking");
-    expect(text).toContain("1 nitpick");
+    expect(text).toContain("1 non-blocking");
   });
 
   it("singularizes a lone finding", () => {

@@ -8,7 +8,13 @@ import { z } from "zod";
  * scale is what makes AI review output hard to triage.
  */
 
-export const DISPOSITIONS = ["blocking", "non-blocking", "nitpick"] as const;
+/**
+ * Two dispositions, deliberately. A nitpick is a preference, and a preference
+ * is not worth a reviewer's attention or a comment on someone's pull request —
+ * so there is no value to carry one. Findings that would have been nitpicks are
+ * not reported at all (§7.5), rather than reported and filtered.
+ */
+export const DISPOSITIONS = ["blocking", "non-blocking"] as const;
 export const CATEGORIES = [
   "correctness",
   "security",
@@ -16,7 +22,6 @@ export const CATEGORIES = [
   "maintainability",
   "testing",
   "docs",
-  "style",
 ] as const;
 
 export const DispositionSchema = z.enum(DISPOSITIONS);
@@ -29,7 +34,6 @@ export type Category = (typeof CATEGORIES)[number];
 export const DISPOSITION_RANK: Record<Disposition, number> = {
   blocking: 0,
   "non-blocking": 1,
-  nitpick: 2,
 };
 
 export const CATEGORY_RANK: Record<Category, number> = {
@@ -39,7 +43,6 @@ export const CATEGORY_RANK: Record<Category, number> = {
   testing: 3,
   maintainability: 4,
   docs: 5,
-  style: 6,
 };
 
 /**
@@ -57,7 +60,8 @@ export const ReportedFindingSchema = z
     endLine: z.number().int().min(1).optional().describe("Last line, for a multi-line finding"),
     disposition: DispositionSchema.describe(
       "blocking = must fix before merge, and requires failureScenario; " +
-        "non-blocking = real but bounded; nitpick = preference only",
+        "non-blocking = a real problem with bounded impact. There is no " +
+        "disposition for a preference: do not report one.",
     ),
     category: CategorySchema,
     title: z.string().min(1).max(120).describe("One line, no trailing period"),
@@ -76,11 +80,7 @@ export const ReportedFindingSchema = z
  * the prompt, so they hold regardless of what the model decides to do.
  */
 function applyClassificationRules(
-  value: {
-    disposition: Disposition;
-    category: Category;
-    failureScenario?: string;
-  },
+  value: { disposition: Disposition; failureScenario?: string },
   ctx: z.RefinementCtx,
 ) {
   if (value.disposition === "blocking") {
@@ -101,23 +101,6 @@ function applyClassificationRules(
     }
   }
 
-  if (value.category === "style" && value.disposition !== "nitpick") {
-    ctx.addIssue({
-      code: "custom",
-      path: ["disposition"],
-      message:
-        "A style finding is a nitpick by definition. Either set disposition to nitpick, or pick the category that reflects the real problem.",
-    });
-  }
-
-  if (value.category === "security" && value.disposition === "nitpick") {
-    ctx.addIssue({
-      code: "custom",
-      path: ["disposition"],
-      message:
-        "A security finding cannot be a nitpick. Use blocking with a failureScenario, or non-blocking if the impact is genuinely bounded.",
-    });
-  }
 }
 
 export type ReportedFinding = z.infer<typeof ReportedFindingSchema>;

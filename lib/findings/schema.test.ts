@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   compareFindings,
+  DISPOSITIONS,
   ReportedFindingSchema,
   type Category,
   type Disposition,
@@ -76,43 +77,49 @@ describe("blocking requires a failure scenario", () => {
     expect(parse({ disposition: "blocking", failureScenario: SCENARIO }).success).toBe(true);
   });
 
-  it("does not require a scenario for non-blocking or nitpick", () => {
+  it("does not require a scenario for non-blocking", () => {
     expect(parse({ disposition: "non-blocking" }).success).toBe(true);
-    expect(parse({ disposition: "nitpick" }).success).toBe(true);
   });
 });
 
-describe("style is a nitpick by definition", () => {
-  it.each(["blocking", "non-blocking"])("rejects style marked %s", (disposition) => {
-    const issues = issuesOf({ category: "style", disposition, failureScenario: SCENARIO });
-    expect(issues.join()).toContain("nitpick by definition");
+describe("nitpicks have no representation", () => {
+  it("rejects the nitpick disposition outright", () => {
+    // Removed from the vocabulary rather than filtered downstream: a model
+    // cannot report what it cannot name (§8.1).
+    expect(parse({ disposition: "nitpick" }).success).toBe(false);
   });
 
-  it("accepts style as a nitpick", () => {
-    expect(parse({ category: "style", disposition: "nitpick" }).success).toBe(true);
-  });
-});
-
-describe("security is never a nitpick", () => {
-  it("rejects security marked nitpick", () => {
-    const issues = issuesOf({ category: "security", disposition: "nitpick" });
-    expect(issues.join()).toContain("cannot be a nitpick");
+  it("rejects the style category, which only ever meant nitpick", () => {
+    expect(parse({ category: "style" }).success).toBe(false);
   });
 
-  it.each([
-    ["blocking", SCENARIO],
-    ["non-blocking", undefined],
-  ])("accepts security as %s", (disposition, failureScenario) => {
-    expect(parse({ category: "security", disposition, failureScenario }).success).toBe(true);
+  it("offers exactly two dispositions", () => {
+    expect([...DISPOSITIONS]).toEqual(["blocking", "non-blocking"]);
+  });
+
+  it("still accepts a security finding at either disposition", () => {
+    expect(parse({ category: "security", disposition: "non-blocking" }).success).toBe(true);
+    expect(
+      parse({ category: "security", disposition: "blocking", failureScenario: SCENARIO }).success,
+    ).toBe(true);
   });
 });
 
 describe("multiple violations", () => {
-  it("reports every problem at once, so one retry can fix all of them", () => {
-    const issues = issuesOf({ category: "style", disposition: "blocking" });
+  it("reports every field problem at once, so one retry can fix all of them", () => {
+    const issues = issuesOf({ title: "", category: "vibes" });
     expect(issues.length).toBeGreaterThanOrEqual(2);
-    expect(issues.join()).toContain("failureScenario");
-    expect(issues.join()).toContain("nitpick by definition");
+    expect(issues.join()).toContain("title");
+    expect(issues.join()).toContain("category");
+  });
+
+  it("holds back cross-field rules until the fields themselves are valid", () => {
+    // Zod runs refinements only after base validation passes, so a bad
+    // category masks the blocking/failureScenario rule. The model fixes the
+    // field, retries, and then sees the second problem — two rounds, not one.
+    const issues = issuesOf({ category: "vibes", disposition: "blocking" });
+    expect(issues.join()).toContain("category");
+    expect(issues.join()).not.toContain("failureScenario");
   });
 });
 
@@ -129,13 +136,12 @@ describe("compareFindings", () => {
       ...over,
     }) as Finding;
 
-  it("puts blocking before non-blocking before nitpick", () => {
+  it("puts blocking before non-blocking", () => {
     const sorted = [
-      f({ disposition: "nitpick" }),
-      f({ disposition: "blocking", failureScenario: SCENARIO }),
       f({ disposition: "non-blocking" }),
+      f({ disposition: "blocking", failureScenario: SCENARIO }),
     ].sort(compareFindings);
-    expect(sorted.map((x) => x.disposition)).toEqual(["blocking", "non-blocking", "nitpick"]);
+    expect(sorted.map((x) => x.disposition)).toEqual(["blocking", "non-blocking"]);
   });
 
   it("puts security and correctness first within a disposition", () => {

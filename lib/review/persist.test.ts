@@ -58,7 +58,7 @@ describe("round trip", () => {
       findings: [
         finding({ id: "a", status: "approved", edited: true, title: "I rewrote this" }),
         finding({ id: "b", status: "dismissed" }),
-        finding({ id: "c", origin: "user", disposition: "nitpick" }),
+        finding({ id: "c", origin: "user", disposition: "non-blocking" }),
       ],
     };
 

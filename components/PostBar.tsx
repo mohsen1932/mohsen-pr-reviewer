@@ -93,8 +93,7 @@ export default function PostBar({
             request?
           </p>
           <p className="font-mono text-[11px] tabular-nums text-ink-muted">
-            {counts.blocking} blocking · {counts["non-blocking"]} non-blocking ·{" "}
-            {counts.nitpick} nitpick
+            {counts.blocking} blocking · {counts["non-blocking"]} non-blocking
             {unanchored > 0 && ` · ${unanchored} as file-level note${unanchored === 1 ? "" : "s"}`}
           </p>
           <p className="text-[11px] text-ink-subtle">
@@ -141,7 +140,7 @@ export default function PostBar({
             {approved.length} finding{approved.length === 1 ? "" : "s"} approved
           </span>
           <span className="font-mono text-[11px] tabular-nums text-ink-subtle">
-            {counts.blocking}B · {counts["non-blocking"]}N · {counts.nitpick}n
+            {counts.blocking}B · {counts["non-blocking"]}N
           </span>
           <button
             type="button"

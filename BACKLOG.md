@@ -60,17 +60,25 @@ Medium was a third cheaper and lost the finding. `high` remains the default on
 the OpenAI engine for the same reason, though the numbers above have not been
 re-measured there. `REVIEW_MODEL` and `REVIEW_EFFORT` make both a per-run choice.
 
-### D3. Default triage state
+### D3. Nitpicks — **decided: removed entirely**
 
-Spec'd as: everything starts `pending`, with one-click "approve all blocking".
-The alternative is auto-approving `blocking` findings on arrival. Leaning toward
-keeping everything pending — the human gate is the product, and blocking is
-exactly the category you least want posted unreviewed.
+The original question was whether to hide nitpicks by default or show them with
+a filter. Neither: the disposition is gone from the vocabulary, and the `style`
+category with it — by its own definition `style` only ever meant "preference".
 
-Related, and genuinely open: should `nitpick` findings be **hidden by default**
-rather than shown and filtered? Hiding them makes the first screen better and
-risks the agent's nitpick budget being spent invisibly. Decide after seeing real
-output on real PRs.
+Removing rather than filtering matters. A filter still costs the agent turns and
+tokens to produce findings nobody reads, and it invites the failure mode where a
+preference is relabelled `non-blocking` to survive the filter. The rubric names
+that explicitly: if the only honest label is "preference", say nothing.
+
+Measured on `colinhacks/zod#5995`, which previously returned one non-blocking
+performance finding plus one maintainability nitpick: the run now returns a
+single **blocking correctness** finding about stale `lastIndex` with custom regex
+testers — a deeper issue than either of the originals.
+
+Open, and now more visible: **there is no way to record a low-priority
+observation.** If that turns out to matter, the answer is a per-category mute
+(B14) rather than reinstating the disposition.
 
 ### D4. One review vs. one comment per finding — **decided: one review**
 
@@ -110,7 +118,8 @@ Small, high-value, none of them architectural.
 - **B14. Per-category mute.** "Never show me `docs` findings" as a persisted
   preference, so the agent's output narrows to what you act on. Needs somewhere
   to persist, so it collides with the no-DB constraint (a local JSON file would
-  do for a local app).
+  do for a local app). Also the right shape for the gap D3 left: a way to say
+  "less of this" without reintroducing a disposition for preferences.
 - **B16. Per-PR effort heuristic.** Cost tracked investigation depth, not diff
   size — a 17-line change was the most expensive of four. A first cheap pass that
   escalates only when it finds something would likely beat a fixed effort level.

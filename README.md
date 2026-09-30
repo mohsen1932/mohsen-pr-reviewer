@@ -37,9 +37,13 @@ was not in the diff at all.
               one GitHub review, with inline comments
 ```
 
-Findings carry two independent axes — **disposition** (blocking / non-blocking /
-nitpick) and **category** (correctness, security, performance, …) — because *how
-urgent* and *what kind* are different questions. Comments post in
+Findings carry two independent axes — **disposition** (blocking or non-blocking)
+and **category** (correctness, security, performance, …) — because *how urgent*
+and *what kind* are different questions.
+
+There is deliberately no "nitpick" disposition. A preference is not worth a
+comment on someone's pull request, so the agent is told not to report one at
+all — rather than reporting it and having you filter it out. Comments post in
 [Conventional Comments](https://conventionalcomments.org/) form:
 
 ```
@@ -67,10 +71,10 @@ Nothing is posted without you approving it, one finding at a time.
 │ @SirwanAfifi · enable-30-mins-cache → main · 91f73d3 · GitHub ↗           │
 │                                                                          │
 │ ┌──────────────────────────────────────────────────────────────────────┐ │
-│ │ [ Review again ]   5 turns · $0.0071 · 40s · cache 81%    ☐ Hide nits│ │
+│ │ [ Review again ]           5 turns · $0.0071 · 40s · cache 81%      │ │
 │ └──────────────────────────────────────────────────────────────────────┘ │
 │                                                                          │
-│ Findings   1 blocking · 0 non-blocking · 0 nitpick    [Approve blocking] │
+│ Findings   1 blocking · 0 non-blocking               [Approve blocking] │
 │                                                                          │
 │ ┌──────────────────────────────────────────────────────────────────────┐ │
 │ │ ▾ src/hooks/usePeople.js                              1 blocking     │ │
@@ -93,7 +97,7 @@ Nothing is posted without you approving it, one finding at a time.
 │ ▸ Dismissed  2                            + Add your own finding         │
 │                                                                          │
 │ ┌──────────────────────────────────────────────────────────────────────┐ │
-│ │ 1 finding approved   1B · 0N · 0n              [ Post 1 comment ]    │ │
+│ │ 1 finding approved   1B · 0N                   [ Post 1 comment ]    │ │
 │ └──────────────────────────────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
