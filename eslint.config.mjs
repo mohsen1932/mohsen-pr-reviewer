@@ -6,6 +6,15 @@ const eslintConfig = [
   ...coreWebVitals,
   ...typescript,
   {
+    rules: {
+      // Destructuring to discard keys is how a subset of an object is built.
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_", ignoreRestSiblings: true },
+      ],
+    },
+  },
+  {
     ignores: [
       "node_modules/**",
       ".next/**",

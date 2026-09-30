@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import DiffSummary from "@/components/DiffSummary";
+import ReviewPanel from "@/components/ReviewPanel";
 import { Badge, Notice } from "@/components/ui";
 import { getAuthenticatedUser } from "@/lib/github";
 import { getPullDetail } from "@/lib/pulls";
@@ -82,18 +83,13 @@ export default async function PullPage({
         </div>
       </header>
 
-      <div className="mt-7 flex flex-wrap items-center gap-3 rounded-lg border border-line bg-surface px-4 py-3.5">
-        <button
-          type="button"
-          disabled
-          className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-ink disabled:cursor-not-allowed disabled:opacity-25"
-        >
-          Review this PR
-        </button>
-        <span className="text-xs text-ink-subtle">
-          {blocker ? `Unavailable — ${blocker.label}: ${blocker.problem}` : "Arrives in M4"}
-        </span>
-      </div>
+      <ReviewPanel
+        owner={owner}
+        repo={repo}
+        number={pull.number}
+        headSha={pull.headSha}
+        blockedReason={blocker ? `${blocker.label}: ${blocker.problem}` : undefined}
+      />
 
       <DiffSummary pull={pull} />
     </AppShell>

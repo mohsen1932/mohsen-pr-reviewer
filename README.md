@@ -43,9 +43,9 @@ no credentials.
 
 ## Status
 
-**M3b of 8 complete** — scaffold, configuration, startup validation, repository
-and pull-request browsing, checkout, and the review engine (454 tests, 97%
-coverage). The review UI and posting are not built yet. See [TASKS.md].
+**M4 of 8 complete** — browse repos and PRs, run a review, and watch findings
+stream in grouped by file (522 tests, 94% coverage). Triage and posting to
+GitHub are next. Triage and posting are not built yet. See [TASKS.md].
 
 ## Documentation
 

@@ -139,23 +139,26 @@ rubric itself carried over unchanged.
 
 ## M4 — Review UI
 
+**✅ Complete.** Verified end to end: a real review streams into the panel.
+
 **Done when:** findings stream in, grouped by file, with disposition and
 category chips.
 
-- [ ] **T4.1** `POST /api/review` — SSE route, Node runtime (§7.6, §9)
-- [ ] **T4.2** 15s `: heartbeat` comment (§7.6)
-- [ ] **T4.3** `useReviewStream` hook — parse SSE, handle drops (§10, §11)
-- [ ] **T4.4** `ReviewPanel.tsx` — `useReducer` + `sessionStorage` mirror (§3, §10)
-- [ ] **T4.5** `FileGroup.tsx` — collapsible, per-disposition counts in header (§10)
-- [ ] **T4.6** `FindingCard.tsx` — disposition + category chips, body, action row (§10)
-- [ ] **T4.7** Grouping and ordering — disposition, then category priority, then
+- [x] **T4.1** `POST /api/review` — SSE route, Node runtime (§7.6, §9)
+- [x] **T4.2** 15s `: heartbeat` comment (§7.6)
+- [x] **T4.3** `useReviewStream` hook — parse SSE, handle drops (§10, §11)
+- [x] **T4.4** `ReviewPanel.tsx` — `useReducer` + `sessionStorage` mirror (§3, §10)
+- [x] **T4.5** `FileGroup.tsx` — collapsible, per-disposition counts in header (§10)
+- [x] **T4.6** `FindingCard.tsx` — disposition + category chips, body, action row (§10)
+- [x] **T4.7** Grouping and ordering — disposition, then category priority, then
       line; groups by worst disposition (§8.4)
-- [ ] **T4.8** ⚠️ Markdown renderer with **raw HTML and `javascript:` disabled**.
+- [x] **T4.8** ⚠️ Markdown renderer with **raw HTML and `javascript:` disabled**.
       Finding bodies derive from attacker-influencable repo content (§12)
-- [ ] **T4.9** Progress display from `status` events (cloning / reading / grepping)
-- [ ] **T4.10** Accessibility: disposition never conveyed by colour alone (§10)
+- [x] **T4.9** Progress display from `status` and `tool` events, with a bounded
+      recent-activity list
+- [x] **T4.10** Accessibility: disposition never conveyed by colour alone (§10)
 
-- [ ] **T4.11** Tests: SSE parsing, event→state mapping, grouping and ordering (§16)
+- [x] **T4.11** Tests: SSE parsing, event→state mapping, grouping and ordering (§16)
 ---
 
 ## M5 — Triage

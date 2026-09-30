@@ -5,8 +5,8 @@ no database. Reviews run an agent loop over the OpenAI API against a real checko
 PR's repo; findings are triaged by a human and posted back to GitHub as one
 review with inline comments.
 
-**Status: M3b complete**, rebuilt on the OpenAI Responses API (`gpt-5.4-mini`).
-462 tests at 97% coverage. Next: TASKS.md M4 (review UI).
+**Status: M4 complete** — reviews stream into the UI. 522 tests at 94% coverage.
+Next: TASKS.md M5 (triage: approve / dismiss / delete / edit).
 
 ## Where things are decided
 
@@ -78,6 +78,11 @@ find yourself removing one, stop and ask.
   top-level await needs an explicit ESM extension.
 - **Cost tracks turns, not diff size.** Every turn re-sends the transcript. When
   a review is expensive, read the cache hit rate on the `done` event first.
+- **Never add `rehype-raw` to `FindingBody`.** react-markdown refuses raw HTML
+  by default, and finding bodies come from model output derived from a diff an
+  attacker can write. URLs go through `safeUrl`.
+- The review reducer lives in `lib/review/reducer.ts`, not in the component, so
+  its transitions are testable. Same for SSE parsing in `lib/review/stream.ts`.
 
 ## Conventions
 
