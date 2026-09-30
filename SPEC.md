@@ -390,8 +390,14 @@ GIT_CONFIG_VALUE_0=Authorization: Basic <base64 of x-access-token:TOKEN>
 environment: git needs neither, and a subprocess should not hold a credential it
 cannot use.
 
-The cache directory is gitignored, and `.cache/` is reported in the UI with a
-"clear cache" action, since it grows without bound.
+A cached clone can be left unreadable by a killed process or a full disk. That
+is detected and the clone is rebuilt **once**; a second failure is reported
+rather than retried forever, and failures the cache cannot cause — a missing
+remote, an oversized repo, a bad sha — never trigger a rebuild.
+
+The cache directory is gitignored, and its size is shown on the repo list with a
+"clear cache" action, since it grows with every repository reviewed and holds
+private source in plaintext (§12).
 
 ### 7.3 The loop
 
@@ -450,6 +456,13 @@ list, and is a dependency the checkout requires anyway. A pattern is passed afte
 which rejects absolute paths, traversal, NUL bytes, and anything resolving
 outside the checkout — including `.git/`, which holds the credential
 configuration and has no place in a review.
+
+**Excluded files are named, not merely absent.** The file selection in §11 drops
+lockfiles and generated output, and a tool asked for one returns "excluded from
+this review (<reason>) — do not look for it again" rather than a bare not-found.
+Without this the agent spends its turn budget hunting for a lockfile it can never
+review: on the first real run it burned all 20 turns doing exactly that and
+reported nothing.
 
 `report_finding` is how findings leave the agent: each call validates against the
 finding schema (§8.2), enforces the classification rules (a `blocking` finding
@@ -642,6 +655,8 @@ routes and no per-request auth check — the process holds the credentials.
 | `/api/repos/:owner/:repo/pulls/:number` | GET | PR metadata + changed files + patches |
 | `/api/review` | POST | `{owner, repo, number}` → SSE stream of findings |
 | `/api/review/post` | POST | `{owner, repo, number, headSha, event, findings[]}` → posts the review |
+| `/api/cache` | GET | Size of the checkout cache, in bytes |
+| `/api/cache` | DELETE | Remove every cached clone (§12) |
 
 Repo and PR listing pages are Server Components; these API routes back the
 client-side search and pagination.
@@ -671,8 +686,14 @@ components/
   DiffSnippet.tsx        the diff lines around a finding, target line marked
   FindingEditor.tsx      body, title, disposition, category, line
   DismissedDrawer.tsx    collapsed list of dismissed findings, restorable
-  PostBar.tsx            sticky: "Post 4 approved comments"
+  PostBar.tsx            sticky: confirm dialog, then the posted result
+  UndoToast.tsx          ~10s undo for the one destructive action
+  CacheControl.tsx       checkout cache size + clear, on the repo list
+  Skeleton.tsx           placeholder rows for the list routes
 ```
+
+`loading.tsx` at each list route renders `Skeleton`, so a slow GitHub call does
+not present as a blank page.
 
 ### Finding card
 
@@ -737,9 +758,9 @@ carrier of meaning — the word `blocking` is always present next to it.
 | Changed files reviewed | 60 | Review the 60 largest-signal files, warn in the UI |
 | Total diff bytes | ~400 KB | Truncate lowest-priority files, warn |
 | Single file patch | 64 KB | Skip that file's patch, note it |
-| Agent turns (`maxTurns`) | 60 | Run ends `error_max_turns`; findings already reported are kept |
+| Agent turns (`MAX_TURNS`) | 20 | Run ends as a *partial* review; findings already reported are kept |
 | Repo size for clone | 2 GB | Refuse with a message rather than filling the disk |
-| Wall-clock per review | 15 min | Cancel via `q.interrupt()`, keep findings so far |
+| Wall-clock per review | 15 min | Loop stops, reported as partial |
 
 **Degradation is always explicit, never silent.** Rows 1-3 reduce scope rather
 than refuse: excluded files are named in the UI and carried into the review body,
@@ -811,16 +832,17 @@ without truncating normal work.
 | GitHub 403 rate-limited | Show reset time from `x-ratelimit-reset` |
 | GitHub 403 / 404 on repo | "No access — check your token covers this repo" (§5) |
 | PR head moved mid-review | `commit_id` mismatch on post → offer re-review |
-| `result` subtype `error_max_turns` | Partial review — show findings received, offer re-run |
-| `result` subtype `error_during_execution` | `error` event with the SDK message and a retry button |
+| Turn limit or 15-minute cap reached | Partial review — findings received are kept, with a banner and a re-run |
+| Review cancelled | Same as above: the loop stops and what arrived is kept |
 | OpenAI 401 | "OPENAI_API_KEY was rejected" — the key is invalid or revoked |
 | OpenAI 429, quota | Quota exhausted is named separately from rate limiting: the first needs credit, the second needs waiting |
 | OpenAI 404 on the model | Names `REVIEW_MODEL` and says the account cannot reach it |
 | `git` not on `PATH` | Setup screen: the app needs a git binary (§14) |
 | Clone/fetch fails (network, auth, size) | `error` event naming the git step that failed |
 | Corrupt cache directory | Delete and re-clone once, then report if it fails again |
-| Agent reports a finding for a file not in the PR | Dropped at `report_finding` (§8.3), counted in the `done` event |
-| SSE connection drops | Review is lost (no DB) — the UI says so and offers re-run |
+| Agent reports a finding for a file not in the PR | Rejected at `report_finding` with the likely path suggested, so the agent can correct it (§8.5) |
+| Agent asks for an excluded file | Told it was excluded and why, rather than not-found (§7.4) |
+| SSE connection drops | Reported as partial when findings had arrived; they are kept (§13) |
 
 ---
 
@@ -896,20 +918,48 @@ is explicit.
 
 ---
 
-## 13. Consequences of having no database
+## 13. Persistence, and what it costs
 
-- A review cannot be resumed. Tab closed, dev server restarted, connection
-  dropped → re-run it, and pay for it again.
-- No review history, no cross-PR statistics, no record of what you posted.
+There is no database. State lives in `window.sessionStorage`, written by
+`lib/review/persist.ts`:
+
+| | |
+|---|---|
+| Key | `review:<owner>/<repo>#<number>@<headSha>` |
+| Value | The review state as JSON — findings, edits, triage status, run summary |
+| Written | On every state change |
+| Read | Once, when the panel mounts |
+
+Two deliberate exclusions. The **undo offer** is not saved: a toast surviving a
+reload would let a deletion be reversed long after it was decided. The **head
+sha** is part of the key, so a pull request that has been pushed to starts clean
+rather than showing findings for a commit that no longer exists.
+
+`sessionStorage` is per-tab, so:
+
+| | Restored |
+|---|---|
+| Refresh, or navigate away and back | yes |
+| Restart the dev server | yes — the state is client-side |
+| Close the tab, or open a second one | **no** |
+| A different browser or machine | **no** |
+
+Consequences, stated plainly:
+
+- A review cannot be resumed across a closed tab. Re-run it, and pay for it
+  again.
+- No review history, no cross-PR statistics, no record of what was posted beyond
+  what is on GitHub.
 - Cost tracking is per-review only — the running total lives in your OpenAI
-  dashboard, not here. This stings more with agent reviews than it would with
-  single-shot ones (§11).
+  dashboard, not here.
 - `.cache/repos/` is the one thing on disk that survives a restart, and it is a
   cache: deleting it costs a clone, nothing else.
 
-The migration path is a single `reviews` table keyed by
-`(owner, repo, number, headSha)` holding the findings JSON. The finding model in
-§8.1 is already serializable, so this is an additive change.
+`localStorage` would survive a closed tab for a one-word change, at the cost of
+holding model output derived from private diffs indefinitely rather than for a
+session. A real store is BACKLOG B7 — the first thing that breaks the no-database
+constraint properly, and the only one that buys history.
+
 
 ---
 

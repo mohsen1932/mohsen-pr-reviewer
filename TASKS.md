@@ -270,3 +270,37 @@ Not a milestone; verify these hold at every step.
       duplicate type definitions (§4, §8.2)
 - [ ] **X.5** Nothing writes to a repository except the single `createReview`
       call (§12)
+
+---
+
+## After M8
+
+Changes made after the milestone plan finished, from review feedback and
+[BACKLOG.md](./BACKLOG.md). Each is committed with its rationale.
+
+- [x] **Nitpicks removed entirely.** The disposition is gone from the vocabulary,
+      and the `style` category with it. A preference is not worth a comment, so
+      the agent is told not to report one at any disposition, enforced by the
+      tool enum, the schema, and `applyEdit` (BACKLOG D3, §8.1)
+- [x] **Diff snippet in each finding card** — three lines either side of the
+      target, sliced from the patch already on the page (BACKLOG B2, §10)
+- [x] **Add-your-own-finding removed**, along with the `origin` field. Every
+      finding comes from the agent (§8.3)
+- [x] **Panel locks after posting.** §10 specified it and the code never did it,
+      so posted findings stayed editable and could silently diverge from GitHub
+- [x] **Review body watermark removed.** No summary, no model attribution. The
+      body now carries only findings that could not be anchored; GitHub requires
+      it to be non-empty, so it falls back to `MINIMAL_REVIEW_BODY` (§6)
+- [x] **Excluded files named to the agent.** A tool asked for a lockfile says it
+      was excluded and why, instead of returning not-found. Found by running a
+      real review that burned all 20 turns hunting for one (§7.4)
+
+### Open
+
+- [ ] **T8.5** ⛔ NEEDS YOU — screenshot of the review screen. No browser tooling
+      in this session; a text rendering stands in, marked with a TODO in
+      README.md
+- [ ] Re-run the four-PR precision evaluation on the current engine. The numbers
+      in §11 came from the previous one (BACKLOG D1)
+- [ ] Decide whether `delete` still earns its place now that nitpicks are gone —
+      it and `dismiss` both only exclude a finding from posting
