@@ -1,6 +1,9 @@
+import AppShell from "@/components/AppShell";
 import RepoList from "@/components/RepoList";
 import RepoUrlInput from "@/components/RepoUrlInput";
 import SetupNotice from "@/components/SetupNotice";
+import { Notice, PageTitle } from "@/components/ui";
+import { getAuthenticatedUser } from "@/lib/github";
 import { listRepos } from "@/lib/repos";
 import { scrubError } from "@/lib/scrub";
 import { runStartupChecks } from "@/lib/startup";
@@ -9,40 +12,45 @@ export const dynamic = "force-dynamic";
 
 export default async function ReposPage() {
   const report = await runStartupChecks();
-  if (!report.canBrowse) return <SetupNotice report={report} />;
-
-  const blocked = report.checks.filter((c) => !c.ok);
-
-  let repos;
-  try {
-    repos = await listRepos();
-  } catch (error) {
+  if (!report.canBrowse) {
     return (
-      <main className="mx-auto max-w-3xl px-4 py-12">
-        <h1 className="text-xl font-semibold">Local PR Reviewer</h1>
-        <p className="mt-4 text-sm text-red-600 dark:text-red-400">
-          Could not list repositories: {scrubError(error)}
-        </p>
-      </main>
+      <AppShell>
+        <SetupNotice report={report} />
+      </AppShell>
     );
   }
 
+  const blocked = report.checks.filter((c) => !c.ok);
+  const [user, repos] = await Promise.all([
+    getAuthenticatedUser().catch(() => null),
+    listRepos().catch((error: unknown) => scrubError(error)),
+  ]);
+
   return (
-    <main className="mx-auto max-w-3xl px-4 py-12">
-      <h1 className="text-xl font-semibold tracking-tight">Local PR Reviewer</h1>
+    <AppShell user={user}>
+      <PageTitle eyebrow="Repositories">Pick a repository</PageTitle>
+
+      <div className="mt-6">
+        <RepoUrlInput />
+      </div>
 
       {blocked.length > 0 && (
-        <div className="mt-4 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
-          Reviews are unavailable:{" "}
-          {blocked.map((c) => `${c.label} — ${c.problem}`).join("; ")}
+        <div className="mt-5">
+          <Notice title="Reviews are unavailable">
+            {blocked.map((c) => `${c.label} — ${c.problem}`).join("; ")}
+          </Notice>
         </div>
       )}
 
-      <RepoUrlInput />
-
       <div className="mt-8">
-        <RepoList repos={repos} />
+        {typeof repos === "string" ? (
+          <Notice tone="del" title="Could not list repositories">
+            {repos}
+          </Notice>
+        ) : (
+          <RepoList repos={repos} />
+        )}
       </div>
-    </main>
+    </AppShell>
   );
 }

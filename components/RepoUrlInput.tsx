@@ -3,7 +3,6 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-/** Paste a repo or PR URL and go straight there. SPEC.md §6. */
 export default function RepoUrlInput() {
   const router = useRouter();
   const [value, setValue] = useState("");
@@ -40,24 +39,24 @@ export default function RepoUrlInput() {
   }
 
   return (
-    <form onSubmit={submit} className="mt-6">
+    <form onSubmit={submit}>
       <div className="flex gap-2">
         <input
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          placeholder="owner/repo, or paste a github.com URL"
-          aria-label="Repository URL"
-          className="min-w-0 flex-1 rounded-md border border-black/15 bg-transparent px-3 py-2 text-sm outline-none focus:border-black/40 dark:border-white/20 dark:focus:border-white/50"
+          placeholder="owner/repo, or paste any github.com link"
+          aria-label="Repository or pull request URL"
+          className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-3.5 py-2.5 text-sm text-ink placeholder:text-ink-subtle focus:border-line-strong focus:outline-none"
         />
         <button
           type="submit"
           disabled={busy || !value.trim()}
-          className="shrink-0 rounded-md border border-black/15 px-3 py-2 text-sm disabled:opacity-40 dark:border-white/20"
+          className="shrink-0 rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-accent-ink transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-25"
         >
           {busy ? "Opening…" : "Open"}
         </button>
       </div>
-      {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {error && <p className="mt-2 text-[13px] text-del">{error}</p>}
     </form>
   );
 }

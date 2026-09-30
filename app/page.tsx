@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import AppShell from "@/components/AppShell";
 import SetupNotice from "@/components/SetupNotice";
 import { runStartupChecks } from "@/lib/startup";
 
@@ -8,8 +9,12 @@ export default async function Home() {
   const report = await runStartupChecks();
 
   // Browsing only needs GitHub; a missing Anthropic key gates reviews, not
-  // navigation (SPEC.md §14).
+  // navigation.
   if (report.canBrowse) redirect("/repos");
 
-  return <SetupNotice report={report} />;
+  return (
+    <AppShell>
+      <SetupNotice report={report} />
+    </AppShell>
+  );
 }

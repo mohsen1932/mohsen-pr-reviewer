@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { PullSummary } from "@/lib/pulls";
 import { relativeTime } from "@/lib/format";
+import { Badge } from "./ui";
 
 export default function PrList({
   owner,
@@ -13,37 +14,37 @@ export default function PrList({
 }) {
   if (pulls.length === 0) {
     return (
-      <p className="py-8 text-sm text-black/50 dark:text-white/50">
+      <div className="rounded-lg border border-line bg-surface px-4 py-14 text-center text-[13px] text-ink-subtle">
         No open pull requests.
-      </p>
+      </div>
     );
   }
 
   return (
-    <ul className="mt-2">
+    <ul className="overflow-hidden rounded-lg border border-line bg-surface">
       {pulls.map((pr) => (
-        <li key={pr.number} className="border-b border-black/10 dark:border-white/10">
+        <li key={pr.number} className="not-last:border-b not-last:border-line">
           <Link
             href={`/repos/${owner}/${repo}/pulls/${pr.number}`}
-            className="block py-3 hover:bg-black/[.03] dark:hover:bg-white/[.04]"
+            className="group flex gap-3.5 px-4 py-3.5 transition-colors hover:bg-hover"
           >
-            <div className="flex flex-wrap items-baseline gap-x-2">
-              <span className="font-mono text-xs text-black/40 dark:text-white/40">
-                #{pr.number}
-              </span>
-              <span className="font-medium">{pr.title}</span>
-              {pr.draft && (
-                <span className="rounded border border-black/20 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-black/50 dark:border-white/25 dark:text-white/50">
-                  draft
+            <span className="mt-px shrink-0 font-mono text-xs tabular-nums text-ink-subtle">
+              #{pr.number}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span className="text-sm font-medium text-ink group-hover:text-accent">
+                  {pr.title}
                 </span>
-              )}
-              <span className="ml-auto text-xs text-black/40 dark:text-white/40">
-                updated {relativeTime(pr.updatedAt)}
-              </span>
+                {pr.draft && <Badge>draft</Badge>}
+              </div>
+              <p className="mt-1 truncate font-mono text-[11px] text-ink-subtle">
+                @{pr.author} · {pr.headRef} → {pr.baseRef}
+              </p>
             </div>
-            <p className="mt-1 text-xs text-black/50 dark:text-white/50">
-              @{pr.author} · {pr.headRef} → {pr.baseRef}
-            </p>
+            <span className="shrink-0 self-center font-mono text-[11px] tabular-nums text-ink-subtle">
+              {relativeTime(pr.updatedAt)}
+            </span>
           </Link>
         </li>
       ))}
