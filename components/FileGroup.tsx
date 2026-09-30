@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { FileGroup as Group } from "@/lib/findings/group";
+import type { ParsedPatch } from "@/lib/diff";
 import FindingCard, { type FindingActions } from "./FindingCard";
 
 const ORDER = ["blocking", "non-blocking"] as const;
@@ -12,10 +13,12 @@ const COUNT_TONE = {
 
 export default function FileGroup({
   group,
+  patch,
   actions,
   onBulk,
 }: {
   group: Group;
+  patch?: ParsedPatch;
   actions: FindingActions;
   onBulk: (file: string, action: "approve" | "dismiss") => void;
 }) {
@@ -72,7 +75,12 @@ export default function FileGroup({
       {open && (
         <div className="border-t border-line">
           {group.findings.map((finding) => (
-            <FindingCard key={finding.id} finding={finding} actions={actions} />
+            <FindingCard
+              key={finding.id}
+              finding={finding}
+              patch={patch}
+              actions={actions}
+            />
           ))}
         </div>
       )}

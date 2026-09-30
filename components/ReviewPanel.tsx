@@ -45,6 +45,10 @@ export default function ReviewPanel({
   const dismissed = useMemo(() => dismissedFindings(state), [state]);
   const counts = useMemo(() => countByDisposition(active), [active]);
   const groups = useMemo(() => groupByFile(active), [active]);
+  const patchByFile = useMemo(
+    () => new Map(files.map((f) => [f.filename, f.parsed])),
+    [files],
+  );
 
   const running = state.status === "running";
   const hasFindings = state.findings.length > 0;
@@ -172,6 +176,7 @@ export default function ReviewPanel({
               <FileGroup
                 key={group.file}
                 group={group}
+                patch={patchByFile.get(group.file)}
                 actions={actions}
                 onBulk={(file, action) => review.bulk({ kind: "file", file }, action)}
               />

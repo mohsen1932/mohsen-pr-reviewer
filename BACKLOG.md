@@ -99,6 +99,12 @@ LLM-authored markdown derived from PR diffs (SPEC.md §12).
 
 ---
 
+## Done
+
+- **B2. Diff snippet in each finding card.** Three lines either side of the
+  target, extracted from the patch already on the page. The target line is
+  marked with a border, not colour alone.
+
 ## Cheap wins
 
 Small, high-value, none of them architectural.
@@ -106,8 +112,6 @@ Small, high-value, none of them architectural.
 - **B1. Deep-link PR URLs.** Pasting `github.com/owner/repo/pull/42` should jump
   straight to the review screen. Trivial, and it becomes the way you actually
   use the tool.
-- **B2. Show the diff hunk inline in each finding card.** You can't judge a
-  finding without seeing the code, and the patch is already client-side.
 - **B3. Dry-run mode.** Render exactly what will be posted, as markdown, before
   posting. Builds trust in the tool fast.
 - **B4. Keyboard shortcuts** on the review screen — `j`/`k` navigate, `a`

@@ -82,6 +82,11 @@ Nothing is posted without you approving it, one finding at a time.
 │ │ ● blocking   correctness                                        :7   │ │
 │ │                                                                      │ │
 │ │ staleTime does not keep people queries cached for 30 minutes         │ │
+│ │ ┌──────────────────────────────────────────────────────────────────┐ │ │
+│ │ │    5     refetchOnWindowFocus: false,                            │ │ │
+│ │ │ ▎  7 +   staleTime: 30 * 60 * 1000,                              │ │ │
+│ │ │    8   });                                                       │ │ │
+│ │ └──────────────────────────────────────────────────────────────────┘ │ │
 │ │                                                                      │ │
 │ │ staleTime only controls freshness; it does not keep inactive         │ │
 │ │ queries in the cache. The query still uses the default 5-minute      │ │

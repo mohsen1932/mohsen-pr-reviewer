@@ -1,7 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { Disposition, Finding, FindingStatus } from "@/lib/findings/schema";
+import { extractSnippet } from "@/lib/findings/snippet";
+import type { ParsedPatch } from "@/lib/diff";
+import DiffSnippet from "./DiffSnippet";
 import type { EditorDraft } from "./FindingEditor";
 import FindingBody from "./FindingBody";
 import FindingEditor from "./FindingEditor";
@@ -23,13 +26,20 @@ const action =
 
 export default function FindingCard({
   finding,
+  patch,
   actions,
 }: {
   finding: Finding;
+  /** The file's parsed patch, for the code shown above the comment. */
+  patch?: ParsedPatch;
   actions: FindingActions;
 }) {
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | undefined>();
+  const snippet = useMemo(
+    () => (patch ? extractSnippet(patch, finding.line, finding.endLine) : null),
+    [patch, finding.line, finding.endLine],
+  );
   const tone = TONE[finding.disposition];
   const approved = finding.status === "approved";
 
@@ -94,7 +104,13 @@ export default function FindingCard({
         <>
           <h3 className="mt-2 text-sm font-medium text-ink">{finding.title}</h3>
 
-          <div className="mt-2">
+          {snippet && (
+            <div className="mt-2.5">
+              <DiffSnippet snippet={snippet} file={finding.file} />
+            </div>
+          )}
+
+          <div className="mt-3">
             <FindingBody markdown={finding.body} />
           </div>
 

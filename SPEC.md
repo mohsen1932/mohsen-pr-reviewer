@@ -665,7 +665,8 @@ components/
   PrList.tsx
   ReviewPanel.tsx        orchestrates the SSE stream + reducer
   FileGroup.tsx          collapsible; header shows blocking/non-blocking/nit counts
-  FindingCard.tsx        disposition + category chips, body, action row
+  FindingCard.tsx        disposition + category chips, diff snippet, body, actions
+  DiffSnippet.tsx        the diff lines around a finding, target line marked
   FindingEditor.tsx      body, title, disposition, category, line
   AddFinding.tsx         write your own finding against a diff line
   DismissedDrawer.tsx    collapsed list of dismissed findings, restorable
@@ -679,6 +680,11 @@ components/
 │ ● blocking   correctness            src/auth/session.ts:42 │
 │                                                            │
 │ Session token compared with == leaks timing                │
+│ ┌────────────────────────────────────────────────────────┐ │
+│ │   40   if (!token) return false;                       │ │
+│ │ ▎ 42 + return compareTokens(a, b);                     │ │
+│ │   43   }                                               │ │
+│ └────────────────────────────────────────────────────────┘ │
 │                                                            │
 │ compareTokens() is not constant-time, so response timing   │
 │ leaks the token prefix byte by byte.                       │
@@ -695,6 +701,9 @@ carrier of meaning — the word `blocking` is always present next to it.
 
 ### Review screen behavior
 
+- Each finding shows the diff lines it is about, three either side, with the
+  target line marked by a border rather than colour alone. A finding cannot be
+  judged without the code, and the patch is already on the page.
 - Findings stream in and render as they arrive; the panel is usable before the
   review finishes.
 - Every finding starts `pending`. Post is enabled once ≥1 is `approved`.
@@ -1014,6 +1023,7 @@ both are tested, by extracting them into `lib/` rather than by testing React.
 | `lib/startup.ts` | Each check independently: version boundaries, rejection vs. network failure, and that a failing check never echoes a credential |
 | `lib/diff.ts` | Hunk parsing against real patches, including renames and new files |
 | `lib/review/anchor.ts` | In-hunk, snap-within-3, unsnappable → `lineValid: false`, file-not-in-PR → dropped (§8.5) |
+| `lib/findings/snippet.ts` | Centring on the target line, deleted lines kept, hunk boundaries, multi-line ranges, a line not in the diff |
 | `lib/findings/*` | Schema constraints (`blocking` ⇒ `failureScenario`; `nitpick` and `style` rejected outright), Conventional Comments rendering (§8.1, §6) |
 | `lib/review/checkout.ts` | Path confinement, token never written to `.git/config` (§7.2, §12) |
 | `lib/review/paths.ts` | Traversal, absolute paths, sibling-prefix escapes, `.git/` refusal (§12) |
